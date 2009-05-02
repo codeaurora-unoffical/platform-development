@@ -51,7 +51,7 @@ public class SoftKeyboard extends InputMethodService
      * a QWERTY keyboard to Chinese), but may not be used for input methods
      * that are primarily intended to be used for on-screen text entry.
      */
-    static final boolean PROCESS_HARD_KEYS = true;
+    static final boolean PROCESS_HARD_KEYS = false;
     
     private KeyboardView mInputView;
     private CandidateView mCandidateView;

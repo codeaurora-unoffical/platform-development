@@ -1,3 +1,4 @@
+; Copyright (c)  2009, Code Aurora Forum. All rights reserved.
 ;/*++
 ;
 ;Abstract:
@@ -38,6 +39,12 @@ DefaultDestDir = 12
 ; HTC Dream
 %USB\VID_0BB4&PID_0C01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C01
 %USB\VID_0BB4&PID_0C02&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C02&MI_01
+; Qualcomm (using Google USB ID; older builds)
+%USB\VID_18D1&PID_D00D.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D
+%USB\VID_18D1&PID_D00D&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D&MI_01
+; Qualcomm (using Qualcomm USB ID)
+%USB\VID_05C6&PID_9018.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018
+%USB\VID_05C6&PID_9018&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018&MI_01
 %USB\VID_0BB4&PID_0FFF.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0FFF
 
 ; For XP and later
@@ -47,6 +54,12 @@ DefaultDestDir = 12
 ; HTC Dream
 %USB\VID_0BB4&PID_0C01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C01
 %USB\VID_0BB4&PID_0C02&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C02&MI_01
+; Qualcomm (using Google USB ID; older builds)
+%USB\VID_18D1&PID_D00D.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D
+%USB\VID_18D1&PID_D00D&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D&MI_01
+; Qualcomm (using Qualcomm USB ID)
+%USB\VID_05C6&PID_9018.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018
+%USB\VID_05C6&PID_9018&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018&MI_01
 %USB\VID_0BB4&PID_0FFF.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0FFF
 
 ; For AMD64 and later
@@ -56,6 +69,12 @@ DefaultDestDir = 12
 ; HTC Dream
 %USB\VID_0BB4&PID_0C01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C01
 %USB\VID_0BB4&PID_0C02&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0C02&MI_01
+; Qualcomm (using Google USB ID; older builds)
+%USB\VID_18D1&PID_D00D.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D
+%USB\VID_18D1&PID_D00D&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_18D1&PID_D00D&MI_01
+; Qualcomm (using Qualcomm USB ID)
+%USB\VID_05C6&PID_9018.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018
+%USB\VID_05C6&PID_9018&MI_01.DeviceDescRelease%=androidusb.Dev, USB\VID_05c6&PID_9018&MI_01
 %USB\VID_0BB4&PID_0FFF.DeviceDescRelease%=androidusb.Dev, USB\VID_0BB4&PID_0FFF
 
 [androidusb.Dev.NT]
@@ -121,6 +140,10 @@ Disk_Description= "ADB Interface Installation Disk"
 androidusb.SvcDesc = "ADB Interface Driver"
 ClassName       = "ADB Interface"
 USB\VID_18D1&PID_DDDD.DeviceDescTest="ADB Testing Interface"
+USB\VID_18D1&PID_D00D.DeviceDescRelease="Fastboot interface (Google USB ID)"
 USB\VID_0BB4&PID_0C01.DeviceDescRelease="HTC Dream"
+USB\VID_05C6&PID_9018.DeviceDescRelease="Qualcomm Composite ADB Interface"
 USB\VID_0BB4&PID_0C02&MI_01.DeviceDescRelease="HTC Dream Composite ADB Interface"
+USB\VID_18D1&PID_D00D&MI_01.DeviceDescRelease="Qualcomm Composite ADB Interface (Google USB ID)"
+USB\VID_05C6&PID_9018&MI_01.DeviceDescRelease="Qualcomm Composite ADB Interface-MI01"
 USB\VID_0BB4&PID_0FFF.DeviceDescRelease="HTC Bootloader"
