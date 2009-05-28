@@ -24,7 +24,7 @@ pdk.version=1.0
 
 
 <p>The diagram below illustrates the RIL in the context of Android's Telephony system architecture.</p>
-<p><img src="telephony.gif"></p>
+<p><img src="images/telephony.gif"></p>
 
 Solid elements represent Android blocks and dashed elements represent partner-specific blocks.
 
@@ -79,7 +79,7 @@ void OnRequestComplete (RIL_Token t, RIL_Error e, void *response, size_t respons
 </ul>
 </p>
 <p>The following diagram illustrates a solicited call in Android.</p>
-<p><img src="telephony_solicted_example.gif"></p>
+<p><img src="images/telephony_solicted_example.gif"></p>
 
 
 <a name="androidTelephonyRILUnsolicited"></a><h3>Unsolicited</h3>
@@ -98,7 +98,7 @@ void OnUnsolicitedResponse (int unsolResponse, void *data, size_t datalen);
 </ul>
 </p>
 <p>The following diagram illustrates an unsolicited call in Android.</p>
-<p><img src="telephony_unsolicted_example.gif"></p>
+<p><img src="images/telephony_unsolicted_example.gif"></p>
 
 
 <a name="androidTelephonyRILImplementing"></a><h2>Implementing the RIL</h2>

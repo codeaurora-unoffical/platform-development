@@ -3,7 +3,7 @@ pdk.version=1.0
 @jd:body
 
 
-<p>The Open Handset Distribution (OHD) is a software distribution  for mobile devices, often referred to as Android, developed by members of the <a href="http://www.openhandsetalliance.com">Open Handset Alliance</a>. &nbsp;Android includes an operating system, middleware, and key applications typically required for a mobile device.</p>
+<p>The Open Handset Distribution (OHD) is a isoftware distribution  for mobile devices, often referred to as Android, developed by members of the <a href="http://www.openhandsetalliance.com">Open Handset Alliance</a>. &nbsp;Android includes an operating system, middleware, and key applications typically required for mobile devices.</p>
   
 <p>This porting guide describes the steps necessary to port Android to a new mobile device. &nbsp;Android is designed as a highly-portable, hardware-independent platform based on Linux, and porting the platform to new devices requires little more than porting the Linux kernel and developing the Linux drivers necessary for your device.</p>
   

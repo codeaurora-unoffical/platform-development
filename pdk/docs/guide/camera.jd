@@ -16,7 +16,7 @@ pdk.version=1.0
 
 <p>Android's camera subsystem connects the camera application to the application framework and user space libraries, which in turn communicate with the camera hardware layer that operates the physical camera.</p>
 <p>The diagram below illustrates the structure of the camera subsystem.</p>
-<p><img src="androidCameraArchitecture.gif"></p>
+<p><img src="images/androidCameraArchitecture.gif"></p>
 
 
 <a name="androidCameraBuildingDriver"></a><h2>Building a Camera Library</h2>
@@ -56,13 +56,13 @@ include $(BUILD_SHARED_LIBRARY)
 <a name="androidCameraSequenceDiagramsPreview"></a><h3>Preview</h3>
 
 <p>The following diagram illustrates the sequence of function calls and actions necessary for your camera to preview.</p>
-<img src="cameraPreview.jpg">
+<img src="images/cameraPreview.jpg">
 
 
 <a name="androidCameraSequenceDiagramsTakePic"></a><h3>Taking a Picture</h3>
 
 <p>The following diagram illustrates the sequence of function calls and actions necessary for your camera to take a picture.</p>
-<img src="cameraTakePicture.jpg">
+<img src="images/cameraTakePicture.jpg">
 
 
 <a name="androidCameraInterfaceIntro"></a><h2>Interface</h2>
@@ -72,4 +72,4 @@ include $(BUILD_SHARED_LIBRARY)
 <p class="note"><strong>Note</strong>: This document relies on some Doxygen-generated content that appears in an iFrame below. To return to the Doxygen default content for this page, <a href="camera.html">click here</a>.</p>
 
 
-<iframe onLoad="resizeDoxFrameHeight();" src="_camera_hardware_interface_8h.html" scrolling="no" scroll="no" id="doxygen" marginwidth="0" marginheight="0" frameborder="0" style="width:100%;"></iframe>
+<iframe onLoad="resizeDoxFrameHeight();" src="CameraHardwareInterface_8h.html" scrolling="no" scroll="no" id="doxygen" marginwidth="0" marginheight="0" frameborder="0" style="width:100%;"></iframe>
