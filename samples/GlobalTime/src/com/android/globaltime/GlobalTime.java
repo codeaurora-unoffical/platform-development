@@ -794,6 +794,9 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
 
         boolean handled = false;
 
+        if (mGLView == null) // Do not process keyevents
+            return true;     // if the view is not created by that time
+
         // If we're not in alphabetical entry mode, convert letters
         // to their digit equivalents
         if (!mAlphaKeySet) {
@@ -1272,6 +1275,9 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
      * Draws the 2D layer.
      */
     @Override protected void onDraw(Canvas canvas) {
+        if (mGLView ==  null)
+            return; /* return if the view is null */
+
         long now = System.currentTimeMillis();
         if (startTime != -1) {
             startTime = -1;
