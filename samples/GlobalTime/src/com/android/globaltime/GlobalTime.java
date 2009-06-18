@@ -177,6 +177,9 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
 
     // Index of current clock
     private int mCityIndex;
+  
+    // Index of matching city
+    private int mCityNameMatchIndex = 0;
 
     // Current clock
     private Clock mClock;
@@ -647,6 +650,7 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
             locateCity(false, 0.0f);
         }
         goToCity();
+        mCityNameMatchIndex = mCityIndex;
     }
 
     /**
@@ -667,7 +671,7 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
     private void clearCityMatches() {
         // Determine the global city index that matches the current city
         if (mCityNameMatches.size() > 0) {
-            City city = mCityNameMatches.get(mCityIndex);
+            City city = mCityNameMatches.get(mCityNameMatchIndex);
             for (int i = 0; i < mClockCities.size(); i++) {
                 City ncity = mClockCities.get(i);
                 if (city.equals(ncity)) {
@@ -679,6 +683,7 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
 
         mCityName = "";
         mCityNameMatches.clear();
+        mCityNameMatchIndex = 0;
         mCities = mClockCities;
         goToCity();
     }
