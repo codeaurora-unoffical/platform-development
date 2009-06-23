@@ -1388,14 +1388,6 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
         }
         mGLView.setNumTriangles(mNumTriangles);
         egl.eglSwapBuffers(mEGLDisplay, mEGLSurface);
-
-        if (egl.eglGetError() == EGL11.EGL_CONTEXT_LOST) {
-            // we lost the gpu, quit immediately
-            Context c = getContext();
-            if (c instanceof Activity) {
-                ((Activity)c).finish();
-            }
-        }
     }
 
 
