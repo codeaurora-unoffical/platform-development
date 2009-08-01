@@ -264,7 +264,7 @@ NDK_APP_VARS_REQUIRED := APP_MODULES APP_PROJECT_PATH
 NDK_APP_VARS_OPTIONAL := APP_OPTIM APP_CPPFLAGS APP_CFLAGS APP_CXXFLAGS
 
 # the list of all variables that may appear in an Application.mk file
-NDK_APP_VARS := $(NDK_APP_VARS_REQUIRED) $(NDK_APPS_VARS_OPTIONAL)
+NDK_APP_VARS := $(NDK_APP_VARS_REQUIRED) $(NDK_APP_VARS_OPTIONAL)
 
 # =============================================================================
 #
@@ -368,13 +368,12 @@ $$(_OBJ): PRIVATE_ARM_MODE := $$(LOCAL_ARM_MODE)
 $$(_OBJ): PRIVATE_ARM_TEXT := $$(LOCAL_ARM_TEXT)
 $$(_OBJ): PRIVATE_CC       := $$($$(my)CC)
 $$(_OBJ): PRIVATE_CFLAGS   := $$($$(my)CFLAGS) \
-                              $$($$(my)_$(LOCAL_ARM_MODE)_$(LOCAL_BUILD_MODE)_CFLAGS) \
+                              $$($$(my)$(LOCAL_ARM_MODE)_$(LOCAL_BUILD_MODE)_CFLAGS) \
+                              $$(LOCAL_C_INCLUDES:%=-I%) \
                               -I$$(LOCAL_PATH) \
-                              -I$$(OBJS_DIR)   \
                               $$(LOCAL_CFLAGS) \
                               $$(NDK_APP_CPPFLAGS) \
-                              $$(NDK_APP_CFLAGS) \
-                              $$(LOCAL_ARM_CFLAGS)
+                              $$(NDK_APP_CFLAGS)
 
 $$(_OBJ): $$(_SRC) $$(LOCAL_MAKEFILE) $$(NDK_APP_APPLICATION_MK)
 	@mkdir -p $$(dir $$(PRIVATE_OBJ))
@@ -428,13 +427,12 @@ $$(_OBJ): PRIVATE_ARM_MODE := $$(LOCAL_ARM_MODE)
 $$(_OBJ): PRIVATE_ARM_TEXT := $$(LOCAL_ARM_TEXT)
 $$(_OBJ): PRIVATE_CXX      := $$($$(my)CXX)
 $$(_OBJ): PRIVATE_CXXFLAGS := $$($$(my)CXXFLAGS) \
-                              $$($$(my)_$(LOCAL_ARM_MODE)_$(LOCAL_BUILD_MODE)_CFLAGS) \
+                              $$($$(my)$(LOCAL_ARM_MODE)_$(LOCAL_BUILD_MODE)_CFLAGS) \
+                              $$(LOCAL_C_INCLUDES:%=-I%) \
                               -I$$(LOCAL_PATH) \
-                              -I$$(OBJS_DIR)   \
                               $$(LOCAL_CFLAGS) \
                               $$(NDK_APP_CPPFLAGS) \
                               $$(NDK_APP_CXXFLAGS) \
-                              $$(LOCAL_ARM_CFLAGS)
 
 $$(_OBJ): $$(_SRC) $$(LOCAL_MAKEFILE) $$(NDK_APP_APPLICATION_MK)
 	@mkdir -p $$(dir $$(PRIVATE_OBJ))

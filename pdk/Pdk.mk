@@ -15,12 +15,12 @@
 #
 
 # Assemble the Platform Development Kit (PDK)
-# (TODO) Figure out why $(ACP) builds with target ndk but not pdk_docs
+# (TODO) Figure out why $(ACP) builds with target pndk but not pdk_docs
 
 pdk:
-	@echo "Package: $@ has targets ndk, pdk_docs and pdk_all"
+	@echo "Package: $@ has targets pndk, pdk_docs and pdk_all"
 
-pdk_all: ndk pdk_docs
+pdk_all: pndk pdk_docs
 	@echo "Package: $^"
 
 LOCAL_PATH := $(call my-dir)
@@ -28,8 +28,8 @@ LOCAL_PATH := $(call my-dir)
 #-------------------------------------------------------------------------------
 # Make the Native Development Kit (Code examples)
 #   Allows vendors to build shared libraries without entire source tree.
-# This include adds /ndk to LOCAL_PATH, so can't use it afterwards...
-include $(LOCAL_PATH)/ndk/Ndk.mk
+# This include adds /pndk to LOCAL_PATH, so can't use it afterwards...
+include $(LOCAL_PATH)/pndk/Pndk.mk
 
 
 #-------------------------------------------------------------------------------
@@ -50,6 +50,7 @@ pdk_templates_dir := development/pdk/docs
 pdk_config_dir := development/pdk/doxygen_config
 pdk_docsfile_dir := $(pdk_config_dir)/docsfiles
 pdk_legacy_hardware_dir := hardware/libhardware_legacy/include/hardware_legacy
+pdk_hardware_dir := hardware/libhardware/include/hardware
 pdk_camera_dir := frameworks/base/include/ui
 
 # Destination directory for docs (templates + doxygenated headers)
@@ -78,7 +79,9 @@ pdk_headers := \
     $(pdk_legacy_hardware_dir)/AudioHardwareInterface.h \
     $(pdk_legacy_hardware_dir)/gps.h \
     $(pdk_legacy_hardware_dir)/wifi.h \
-    $(pdk_camera_dir)/CameraHardwareInterface.h
+    $(pdk_camera_dir)/CameraHardwareInterface.h \
+    $(pdk_hardware_dir)/sensors.h \
+    $(pdk_hardware_dir)/lights.h
 
 # Create a rule to copy the list of PDK headers to be doxyginated.
 # copy-one-header defines the actual rule.
@@ -178,7 +181,7 @@ $(LOCAL_PATH)/pdk-timestamp: $(pdk_docs_intermediates)/pdk-timestamp
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := pdk-timestamp samples/samplejni/src/com/example/jniexample/JNIExample.java  
-LOCAL_MODULE_CLASS := development/pdk/ndk/samples/samplejni/src/com/example/jniexample
+LOCAL_MODULE_CLASS := development/pdk/pndk/samples/samplejni/src/com/example/jniexample
 LOCAL_DROIDDOC_SOURCE_PATH := $(framework_docs_LOCAL_DROIDDOC_SOURCE_PATH)
 LOCAL_DROIDDOC_HTML_DIR := ../../../$(pdk_app_eng_root)
 

@@ -1,5 +1,19 @@
 #!/bin/sh
 #
+# Copyright (C) 2009 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # This script is used to build complete Android NDK release packages
 # from the git repository and a set of prebuilt cross-toolchain tarballs
 #
@@ -9,7 +23,7 @@ NDK_ROOT_DIR=`dirname $0`/../..
 NDK_ROOT_DIR=`cd $NDK_ROOT_DIR && pwd`
 
 # the release name
-RELEASE=1.5_r1
+RELEASE=1.5_r2
 
 # the package prefix
 PREFIX=android-ndk
@@ -21,8 +35,7 @@ PREBUILT_DIR=
 PREBUILT_PREFIX=android-ndk-prebuilt-20090323
 
 # the list of supported host development systems
-PREBUILT_SYSTEMS="linux-x86 linux-x86_64 darwin-x86 windows"
-
+PREBUILT_SYSTEMS="linux-x86 darwin-x86 windows"
 
 OPTION_HELP=no
 
@@ -105,7 +118,7 @@ for SYS in $PREBUILT_SYSTEMS; do
     fi
 done
 
-# the list of git files to copy into the archives
+# The list of git files to copy into the archives
 GIT_FILES=`cd $NDK_ROOT_DIR && git ls-files`
 
 # temporary directory used for packaging
@@ -119,9 +132,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "Creating reference from git files"
 REFERENCE=$TMPDIR/reference &&
 mkdir -p $REFERENCE &&
-(for ff in $GIT_FILES; do
-  mkdir -p $REFERENCE/`dirname $ff` && cp -pf $NDK_ROOT_DIR/$ff $REFERENCE/$ff;
-done) &&
+(cd $NDK_ROOT_DIR && tar cf - $GIT_FILES) | (cd $REFERENCE && tar xf -) &&
 rm -f $REFERENCE/Android.mk
 if [ $? != 0 ] ; then
     echo "Could not create git reference. Aborting."
@@ -165,4 +176,3 @@ rm -rf $TMPDIR/reference
 
 echo "Done, please see packages in $TMPDIR:"
 ls -l $TMPDIR
-

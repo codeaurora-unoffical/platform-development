@@ -19,15 +19,11 @@ package com.android.ide.eclipse.adt.internal.launch;
 import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.Client;
 import com.android.ddmlib.ClientData;
-import com.android.ddmlib.Device;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.Log;
-import com.android.ddmlib.MultiLineReceiver;
-import com.android.ddmlib.SyncService;
 import com.android.ddmlib.AndroidDebugBridge.IClientChangeListener;
 import com.android.ddmlib.AndroidDebugBridge.IDebugBridgeChangeListener;
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
-import com.android.ddmlib.SyncService.SyncResult;
 import com.android.ide.eclipse.adt.AdtPlugin;
 import com.android.ide.eclipse.adt.internal.launch.AndroidLaunchConfiguration.TargetMode;
 import com.android.ide.eclipse.adt.internal.launch.DelayedLaunchInfo.InstallRetryMode;
@@ -40,6 +36,7 @@ import com.android.ide.eclipse.adt.internal.sdk.Sdk;
 import com.android.ide.eclipse.adt.internal.wizards.actions.AvdManagerAction;
 import com.android.prefs.AndroidLocation.AndroidLocationException;
 import com.android.sdklib.IAndroidTarget;
+import com.android.sdklib.NullSdkLog;
 import com.android.sdklib.SdkManager;
 import com.android.sdklib.internal.avd.AvdManager;
 import com.android.sdklib.internal.avd.AvdManager.AvdInfo;
@@ -75,8 +72,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Controls the launch of Android application either on a device or on the
@@ -134,47 +129,6 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
 
     /** static instance for singleton */
     private static AndroidLaunchController sThis = new AndroidLaunchController();
-
-
-
-    /**
-     * Output receiver for "pm install package.apk" command line.
-     */
-    private static final class InstallReceiver extends MultiLineReceiver {
-
-        private static final String SUCCESS_OUTPUT = "Success"; //$NON-NLS-1$
-        private static final Pattern FAILURE_PATTERN = Pattern.compile("Failure\\s+\\[(.*)\\]"); //$NON-NLS-1$
-
-        private String mSuccess = null;
-
-        public InstallReceiver() {
-        }
-
-        @Override
-        public void processNewLines(String[] lines) {
-            for (String line : lines) {
-                if (line.length() > 0) {
-                    if (line.startsWith(SUCCESS_OUTPUT)) {
-                        mSuccess = null;
-                    } else {
-                        Matcher m = FAILURE_PATTERN.matcher(line);
-                        if (m.matches()) {
-                            mSuccess = m.group(1);
-                        }
-                    }
-                }
-            }
-        }
-
-        public boolean isCancelled() {
-            return false;
-        }
-
-        public String getSuccess() {
-            return mSuccess;
-        }
-    }
-
 
     /** private constructor to enforce singleton */
     private AndroidLaunchController() {
@@ -348,7 +302,7 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
 
         // reload the AVDs to make sure we are up to date
         try {
-            avdManager.reloadAvds();
+            avdManager.reloadAvds(NullSdkLog.getLogger());
         } catch (AndroidLocationException e1) {
             // this happens if the AVD Manager failed to find the folder in which the AVDs are
             // stored. This is unlikely to happen, but if it does, we should force to go manual
@@ -848,70 +802,29 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      * @return true if the install succeeded.
      */
     private boolean doSyncApp(DelayedLaunchInfo launchInfo, IDevice device) {
+        IPath path = launchInfo.getPackageFile().getLocation();
+        String fileName = path.lastSegment();
         try {
-            SyncService sync = device.getSyncService();
-            if (sync != null) {
-                IPath path = launchInfo.getPackageFile().getLocation();
-                String message = String.format("Uploading %1$s onto device '%2$s'",
-                        path.lastSegment(), device.getSerialNumber());
-                AdtPlugin.printToConsole(launchInfo.getProject(), message);
+            String message = String.format("Uploading %1$s onto device '%2$s'",
+                    fileName, device.getSerialNumber());
+            AdtPlugin.printToConsole(launchInfo.getProject(), message);
 
-                String osLocalPath = path.toOSString();
-                String apkName = launchInfo.getPackageFile().getName();
-                String remotePath = "/data/local/tmp/" + apkName; //$NON-NLS-1$
+            String remotePackagePath = device.syncPackageToDevice(path.toOSString());
+            boolean installResult = installPackage(launchInfo, remotePackagePath, device);
+            device.removeRemotePackage(remotePackagePath);
 
-                SyncResult result = sync.pushFile(osLocalPath, remotePath,
-                        SyncService.getNullProgressMonitor());
-
-                if (result.getCode() != SyncService.RESULT_OK) {
-                    String msg = String.format("Failed to upload %1$s on '%2$s': %3$s",
-                            apkName, device.getSerialNumber(), result.getMessage());
-                    AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg);
-                    return false;
-                }
-
-                // Now that the package is uploaded, we can install it properly.
-                // This will check that there isn't another apk declaring the same package, or
-                // that another install used a different key.
-                boolean installResult =  installPackage(launchInfo, remotePath, device);
-
-                // now we delete the app we sync'ed
-                try {
-                    device.executeShellCommand("rm " + remotePath, new MultiLineReceiver() { //$NON-NLS-1$
-                        @Override
-                        public void processNewLines(String[] lines) {
-                            // pass
-                        }
-                        public boolean isCancelled() {
-                            return false;
-                        }
-                    });
-                } catch (IOException e) {
-                    AdtPlugin.printErrorToConsole(launchInfo.getProject(), String.format(
-                            "Failed to delete temporary package: %1$s", e.getMessage()));
-                    return false;
-                }
-
-                // if the installation succeeded, we register it.
-                if (installResult) {
-                    ApkInstallManager.getInstance().registerInstallation(
-                            launchInfo.getProject(), device);
-                }
-
-                return installResult;
-            } else {
-                String msg = String.format(
-                        "Failed to upload %1$s on device '%2$s': Unable to open sync connection!",
-                        launchInfo.getPackageFile().getName(), device.getSerialNumber());
-                AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg);
+            // if the installation succeeded, we register it.
+            if (installResult) {
+               ApkInstallManager.getInstance().registerInstallation(
+                       launchInfo.getProject(), device);
             }
-        } catch (IOException e) {
-            String msg = String.format(
-                    "Failed to upload %1$s on device '%2$s': Unable to open sync connection!",
-                    launchInfo.getPackageFile().getName(), device.getSerialNumber());
-            AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg, e.getMessage());
+            return installResult;
         }
-
+        catch (IOException e) {
+            String msg = String.format("Failed to upload %1$s on device '%2$s'", fileName,
+                    device.getSerialNumber());
+            AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg, e);
+        }
         return false;
     }
 
@@ -989,22 +902,19 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
         return dependencies;
     }
 
-
-
     /**
-     * Installs the application package that was pushed to a temporary location on the device.
+     * Installs the application package on the device, and handles return result
      * @param launchInfo The launch information
      * @param remotePath The remote path of the package.
      * @param device The device on which the launch is done.
      */
     private boolean installPackage(DelayedLaunchInfo launchInfo, final String remotePath,
             final IDevice device) {
-
         String message = String.format("Installing %1$s...", launchInfo.getPackageFile().getName());
         AdtPlugin.printToConsole(launchInfo.getProject(), message);
-
         try {
-            String result = doInstall(launchInfo, remotePath, device, false /* reinstall */);
+            // try a reinstall first, because the most common case is the app is already installed
+            String result = doInstall(launchInfo, remotePath, device, true /* reinstall */);
 
             /* For now we force to retry the install (after uninstalling) because there's no
              * other way around it: adb install does not want to update a package w/o uninstalling
@@ -1013,7 +923,10 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
             return checkInstallResult(result, device, launchInfo, remotePath,
                     InstallRetryMode.ALWAYS);
         } catch (IOException e) {
-            // do nothing, we'll return false
+            String msg = String.format(
+                    "Failed to install %1$s on device '%2$s!",
+                    launchInfo.getPackageFile().getName(), device.getSerialNumber());
+            AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg, e.getMessage());
         }
 
         return false;
@@ -1034,7 +947,9 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
         if (result == null) {
             AdtPlugin.printToConsole(launchInfo.getProject(), "Success!");
             return true;
-        } else if (result.equals("INSTALL_FAILED_ALREADY_EXISTS")) { //$NON-NLS-1$
+        }
+        else if (result.equals("INSTALL_FAILED_ALREADY_EXISTS")) { //$NON-NLS-1$
+            // this should never happen, since reinstall mode is used on the first attempt
             if (retryMode == InstallRetryMode.PROMPT) {
                 boolean prompt = AdtPlugin.displayPrompt("Application Install",
                         "A previous installation needs to be uninstalled before the new package can be installed.\nDo you want to uninstall?");
@@ -1068,11 +983,10 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
 
                 AdtPlugin.printToConsole(launchInfo.getProject(),
                         "Application already exists. Attempting to re-install instead...");
-                String res = doInstall(launchInfo, remotePath, device, true /* reinstall */);
+                String res = doInstall(launchInfo, remotePath, device, true /* reinstall */ );
                 return checkInstallResult(res, device, launchInfo, remotePath,
                         InstallRetryMode.NEVER);
             }
-
             AdtPlugin.printErrorToConsole(launchInfo.getProject(),
                     "Installation error! The package already exists.");
         } else if (result.equals("INSTALL_FAILED_INVALID_APK")) { //$NON-NLS-1$
@@ -1111,18 +1025,14 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      */
     @SuppressWarnings("unused")
     private String doUninstall(IDevice device, DelayedLaunchInfo launchInfo) throws IOException {
-        InstallReceiver receiver = new InstallReceiver();
         try {
-            device.executeShellCommand("pm uninstall " + launchInfo.getPackageName(), //$NON-NLS-1$
-                    receiver);
+            return device.uninstallPackage(launchInfo.getPackageName());
         } catch (IOException e) {
             String msg = String.format(
                     "Failed to uninstall %1$s: %2$s", launchInfo.getPackageName(), e.getMessage());
             AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg);
             throw e;
         }
-
-        return receiver.getSuccess();
     }
 
     /**
@@ -1137,22 +1047,7 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      */
     private String doInstall(DelayedLaunchInfo launchInfo, final String remotePath,
             final IDevice device, boolean reinstall) throws IOException {
-        InstallReceiver receiver = new InstallReceiver();
-        try {
-            String cmd = String.format(
-                    reinstall ? "pm install -r \"%1$s\"" : "pm install \"%1$s\"", //$NON-NLS-1$ //$NON-NLS-2$
-                    remotePath); //$NON-NLS-1$ //$NON-NLS-2$
-            device.executeShellCommand(cmd, receiver);
-        } catch (IOException e) {
-            String msg = String.format(
-                    "Failed to install %1$s on device '%2$s': %3$s",
-                    launchInfo.getPackageFile().getName(), device.getSerialNumber(),
-                    e.getMessage());
-            AdtPlugin.printErrorToConsole(launchInfo.getProject(), msg);
-            throw e;
-        }
-
-        return receiver.getSuccess();
+        return device.installRemotePackage(remotePath, reinstall);
     }
 
     /**
@@ -1381,9 +1276,9 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      * This is sent from a non UI thread.
      * @param device the new device.
      *
-     * @see IDeviceChangeListener#deviceConnected(Device)
+     * @see IDeviceChangeListener#deviceConnected(IDevice)
      */
-    public void deviceConnected(Device device) {
+    public void deviceConnected(IDevice device) {
         synchronized (sListLock) {
             // look if there's an app waiting for a device
             if (mWaitingForEmulatorLaunches.size() > 0) {
@@ -1415,10 +1310,10 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      * This is sent from a non UI thread.
      * @param device the new device.
      *
-     * @see IDeviceChangeListener#deviceDisconnected(Device)
+     * @see IDeviceChangeListener#deviceDisconnected(IDevice)
      */
     @SuppressWarnings("unchecked")
-    public void deviceDisconnected(Device device) {
+    public void deviceDisconnected(IDevice device) {
         // any pending launch on this device must be canceled.
         String message = "%1$s disconnected! Cancelling '%2$s'!";
         synchronized (sListLock) {
@@ -1451,9 +1346,9 @@ public final class AndroidLaunchController implements IDebugBridgeChangeListener
      * @param device the device that was updated.
      * @param changeMask the mask indicating what changed.
      *
-     * @see IDeviceChangeListener#deviceChanged(Device, int)
+     * @see IDeviceChangeListener#deviceChanged(IDevice, int)
      */
-    public void deviceChanged(Device device, int changeMask) {
+    public void deviceChanged(IDevice device, int changeMask) {
         // We could check if any starting device we care about is now ready, but we can wait for
         // its home app to show up, so...
     }

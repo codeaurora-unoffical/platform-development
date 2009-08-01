@@ -18,22 +18,20 @@ package com.android.ide.eclipse.adt.internal.launch;
 
 import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.Client;
-import com.android.ddmlib.Device;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
-import com.android.ddmlib.Device.DeviceState;
+import com.android.ddmlib.IDevice.DeviceState;
 import com.android.ddmuilib.IImageLoader;
 import com.android.ddmuilib.ImageHelper;
 import com.android.ddmuilib.TableHelper;
 import com.android.ide.eclipse.adt.AdtPlugin;
 import com.android.ide.eclipse.adt.internal.sdk.Sdk;
-import com.android.ide.eclipse.adt.internal.wizards.actions.AvdManagerAction;
 import com.android.ide.eclipse.ddms.DdmsPlugin;
 import com.android.sdklib.IAndroidTarget;
-import com.android.sdklib.internal.avd.AvdManager;
 import com.android.sdklib.internal.avd.AvdManager.AvdInfo;
-import com.android.sdkuilib.AvdSelector;
-import com.android.sdkuilib.AvdSelector.SelectionMode;
+import com.android.sdkuilib.internal.widgets.AvdSelector;
+import com.android.sdkuilib.internal.widgets.AvdSelector.DisplayMode;
+import com.android.sdkuilib.internal.widgets.AvdSelector.IAvdFilter;
 
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -58,8 +56,6 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
-
-import java.util.ArrayList;
 
 /**
  * A dialog that lets the user choose a device to deploy an application.
@@ -92,14 +88,12 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
     private final IAndroidTarget mProjectTarget;
     private final Sdk mSdk;
 
-    private AvdInfo[] mFullAvdList;
-
     private Button mDeviceRadioButton;
 
     private boolean mDisableAvdSelectionChange = false;
 
     /**
-     * Basic Content Provider for a table full of {@link Device} objects. The input is
+     * Basic Content Provider for a table full of {@link IDevice} objects. The input is
      * a {@link AndroidDebugBridge}.
      */
     private class ContentProvider implements IStructuredContentProvider {
@@ -123,13 +117,13 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
 
     /**
      * A Label Provider for the {@link TableViewer} in {@link DeviceChooserDialog}.
-     * It provides labels and images for {@link Device} objects.
+     * It provides labels and images for {@link IDevice} objects.
      */
     private class LabelProvider implements ITableLabelProvider {
 
         public Image getColumnImage(Object element, int columnIndex) {
-            if (element instanceof Device) {
-                Device device = (Device)element;
+            if (element instanceof IDevice) {
+                IDevice device = (IDevice)element;
                 switch (columnIndex) {
                     case 0:
                         return device.isEmulator() ? mEmulatorImage : mDeviceImage;
@@ -175,8 +169,8 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         }
 
         public String getColumnText(Object element, int columnIndex) {
-            if (element instanceof Device) {
-                Device device = (Device)element;
+            if (element instanceof IDevice) {
+                IDevice device = (IDevice)element;
                 switch (columnIndex) {
                     case 0:
                         return device.getSerialNumber();
@@ -265,6 +259,7 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         mProjectTarget = projectTarget;
         mSdk = Sdk.getCurrent();
 
+        AndroidDebugBridge.addDeviceChangeListener(this);
         loadImages();
     }
 
@@ -416,24 +411,9 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         offsetComp.setLayout(layout);
 
         mPreferredAvdSelector = new AvdSelector(offsetComp,
-                getNonRunningAvds(false /*reloadAvds*/),
-                mProjectTarget,
-                new AvdSelector.IExtraAction() {
-                    public void run() {
-                        AvdManagerAction action = new AvdManagerAction();
-                        action.run(null);
-                        refillAvdList(true /*reloadAvds*/);
-                    }
-
-                    public boolean isEnabled() {
-                        return true;
-                    }
-
-                    public String label() {
-                        return "AVD Manager...";
-                    }
-                },
-                SelectionMode.CHECK);
+                mSdk.getAvdManager(),
+                new NonRunningAvdFilter(),
+                DisplayMode.SIMPLE_SELECTION);
         mPreferredAvdSelector.setTableHeightHint(100);
         mPreferredAvdSelector.setEnabled(false);
         mPreferredAvdSelector.setSelectionListener(new SelectionAdapter() {
@@ -514,7 +494,7 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
      * Returns a display string representing the state of the device.
      * @param d the device
      */
-    private static String getStateString(Device d) {
+    private static String getStateString(IDevice d) {
         DeviceState deviceState = d.getState();
         if (deviceState == DeviceState.ONLINE) {
             return "Online";
@@ -533,9 +513,9 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
      * This is sent from a non UI thread.
      * @param device the new device.
      *
-     * @see IDeviceChangeListener#deviceConnected(Device)
+     * @see IDeviceChangeListener#deviceConnected(IDevice)
      */
-    public void deviceConnected(Device device) {
+    public void deviceConnected(IDevice device) {
         final DeviceChooserDialog dialog = this;
         exec(new Runnable() {
             public void run() {
@@ -565,9 +545,9 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
      * This is sent from a non UI thread.
      * @param device the new device.
      *
-     * @see IDeviceChangeListener#deviceDisconnected(Device)
+     * @see IDeviceChangeListener#deviceDisconnected(IDevice)
      */
-    public void deviceDisconnected(Device device) {
+    public void deviceDisconnected(IDevice device) {
         deviceConnected(device);
     }
 
@@ -578,10 +558,10 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
      * @param device the device that was updated.
      * @param changeMask the mask indicating what changed.
      *
-     * @see IDeviceChangeListener#deviceChanged(Device, int)
+     * @see IDeviceChangeListener#deviceChanged(IDevice, int)
      */
-    public void deviceChanged(final Device device, int changeMask) {
-        if ((changeMask & (Device.CHANGE_STATE | Device.CHANGE_BUILD_INFO)) != 0) {
+    public void deviceChanged(final IDevice device, int changeMask) {
+        if ((changeMask & (IDevice.CHANGE_STATE | IDevice.CHANGE_BUILD_INFO)) != 0) {
             final DeviceChooserDialog dialog = this;
             exec(new Runnable() {
                 public void run() {
@@ -595,6 +575,7 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
                         // update the display of AvdInfo (since it's filtered to only display
                         // non running AVD). This is done on deviceChanged because the avd name
                         // of a (emulator) device may be updated as the emulator boots.
+
                         refillAvdList(false /*reloadAvds*/);
 
                         // if the changed device is the current selection,
@@ -663,15 +644,15 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         } else {
             int index = mDeviceTable.getSelectionIndex();
             Object data = mViewer.getElementAt(index);
-            if (data instanceof Device) {
-                handleSelection((Device)data);
+            if (data instanceof IDevice) {
+                handleSelection((IDevice)data);
             } else {
                 handleSelection(null);
             }
         }
     }
 
-    private void handleSelection(Device device) {
+    private void handleSelection(IDevice device) {
         mResponse.setDeviceToUse(device);
         enableOkButton();
     }
@@ -686,9 +667,9 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         if (mDeviceTable.getSelectionCount() == 0) {
             AndroidDebugBridge bridge = AndroidDebugBridge.getBridge();
 
-            Device[] devices = bridge.getDevices();
+            IDevice[] devices = bridge.getDevices();
 
-            for (Device device : devices) {
+            for (IDevice device : devices) {
                 Client[] clients = device.getClients();
 
                 for (Client client : clients) {
@@ -708,50 +689,44 @@ public class DeviceChooserDialog extends Dialog implements IDeviceChangeListener
         handleDeviceSelection();
     }
 
-    /**
-     * Returns the list of {@link AvdInfo} that are not already running in an emulator.
-     */
-    private AvdInfo[] getNonRunningAvds(boolean reloadAvds) {
-        ArrayList<AvdInfo> list = new ArrayList<AvdInfo>();
+    private final class NonRunningAvdFilter implements IAvdFilter {
 
-        // get the full list of Android Virtual Devices
-        if (reloadAvds || mFullAvdList == null) {
-            AvdManager avdManager = mSdk.getAvdManager();
-            if (avdManager != null) {
-                mFullAvdList = avdManager.getValidAvds();
-            }
+        private IDevice[] mDevices;
+
+        public void prepare() {
+            mDevices = AndroidDebugBridge.getBridge().getDevices();
         }
 
-        // loop through all the Avd and put the one that are not running in the list.
-        if (mFullAvdList != null) {
-            Device[] devices = AndroidDebugBridge.getBridge().getDevices();
-            avdLoop: for (AvdInfo info : mFullAvdList) {
-                for (Device d : devices) {
-                    if (info.getName().equals(d.getAvdName())) {
-                        continue avdLoop;
+        public boolean accept(AvdInfo avd) {
+            if (mDevices != null) {
+                for (IDevice d : mDevices) {
+                    if (mProjectTarget.isCompatibleBaseFor(avd.getTarget()) == false ||
+                            avd.getName().equals(d.getAvdName())) {
+                        return false;
                     }
                 }
-                list.add(info);
             }
+
+            return true;
         }
 
-        return list.toArray(new AvdInfo[list.size()]);
+        public void cleanup() {
+            mDevices = null;
+        }
     }
 
     /**
      * Refills the AVD list keeping the current selection.
      */
     private void refillAvdList(boolean reloadAvds) {
-        AvdInfo[] array = getNonRunningAvds(reloadAvds);
-
         // save the current selection
         AvdInfo selected = mPreferredAvdSelector.getSelected();
 
         // disable selection change.
         mDisableAvdSelectionChange = true;
 
-        // set the new list in the selector
-        mPreferredAvdSelector.setAvds(array, mProjectTarget);
+        // refresh the list
+        mPreferredAvdSelector.refresh(false);
 
         // attempt to reselect the proper avd if needed
         if (selected != null) {

@@ -20,14 +20,14 @@ import com.android.ide.eclipse.adt.AdtPlugin;
 import com.android.ide.eclipse.adt.internal.launch.AndroidLaunchConfiguration.TargetMode;
 import com.android.ide.eclipse.adt.internal.project.BaseProjectHelper;
 import com.android.ide.eclipse.adt.internal.sdk.Sdk;
-import com.android.ide.eclipse.adt.internal.wizards.actions.AvdManagerAction;
 import com.android.ide.eclipse.ddms.DdmsPlugin;
 import com.android.prefs.AndroidLocation.AndroidLocationException;
 import com.android.sdklib.IAndroidTarget;
+import com.android.sdklib.NullSdkLog;
 import com.android.sdklib.internal.avd.AvdManager;
 import com.android.sdklib.internal.avd.AvdManager.AvdInfo;
-import com.android.sdkuilib.AvdSelector;
-import com.android.sdkuilib.AvdSelector.SelectionMode;
+import com.android.sdkuilib.internal.widgets.AvdSelector;
+import com.android.sdkuilib.internal.widgets.AvdSelector.DisplayMode;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
@@ -134,7 +134,7 @@ public class EmulatorConfigTab extends AbstractLaunchConfigurationTab {
 
         // reload the AVDs to make sure we are up to date
         try {
-            Sdk.getCurrent().getAvdManager().reloadAvds();
+            Sdk.getCurrent().getAvdManager().reloadAvds(NullSdkLog.getLogger());
         } catch (AndroidLocationException e1) {
             // this happens if the AVD Manager failed to find the folder in which the AVDs are
             // stored. There isn't much we can do at this point.
@@ -191,24 +191,12 @@ public class EmulatorConfigTab extends AbstractLaunchConfigurationTab {
 
         mPreferredAvdLabel = new Label(offsetComp, SWT.NONE);
         mPreferredAvdLabel.setText("Select a preferred Android Virtual Device for deployment:");
-        mPreferredAvdSelector = new AvdSelector(offsetComp,
-                null /*avds*/,
-                new AvdSelector.IExtraAction() {
-                    public void run() {
-                        AvdManagerAction action = new AvdManagerAction();
-                        action.run(null);
-                        updateAvdList(null);
-                    }
 
-                    public boolean isEnabled() {
-                        return true;
-                    }
-
-                    public String label() {
-                        return "AVD Manager...";
-                    }
-                },
-                SelectionMode.CHECK);
+        // create the selector with no manager, we'll reset the manager every time this is
+        // displayed to ensure we have the latest one (dialog is reused but SDK could have
+        // been changed in between.
+        mPreferredAvdSelector = new AvdSelector(offsetComp, null /* avd manager */,
+                DisplayMode.SIMPLE_CHECK);
         mPreferredAvdSelector.setTableHeightHint(100);
         mPreferredAvdSelector.setSelectionListener(new SelectionAdapter() {
             @Override
@@ -322,13 +310,9 @@ public class EmulatorConfigTab extends AbstractLaunchConfigurationTab {
             avdManager = Sdk.getCurrent().getAvdManager();
         }
 
-        AvdInfo[] avds = null;
-        // no project? we don't want to display any "compatible" AVDs.
-        if (avdManager != null && mProjectTarget != null) {
-            avds = avdManager.getValidAvds();
-        }
-
-        mPreferredAvdSelector.setAvds(avds, mProjectTarget);
+        mPreferredAvdSelector.setManager(avdManager);
+        mPreferredAvdSelector.setFilter(mProjectTarget);
+        mPreferredAvdSelector.refresh(false);
     }
 
     /* (non-Javadoc)
