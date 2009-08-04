@@ -11,9 +11,8 @@ Signature="$WINDOWS NT$"
 Class=USB
 ClassGuid={F72FE0D4-CBCB-407d-8814-9ED673D0DD6B}
 Provider=%GOOG%
-DriverVer=1/29/2009,1.0.0010.00000
+DriverVer=06/25/2009,1.0.0010.00001
 CatalogFile.NTx86=androidusb86.cat
-CatalogFile.NTamd64=androidusba64.cat
 
 ; ================= Class section =====================
 
@@ -30,7 +29,7 @@ DefaultDestDir = 12
 ; ================= Device section =====================
 
 [Manufacturer]
-%MfgName%=Google,NTx86,NTamd64
+%MfgName%=Google,NTx86
 
 ; For Win2K
 [Google]

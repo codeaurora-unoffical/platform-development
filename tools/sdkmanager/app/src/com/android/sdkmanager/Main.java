@@ -226,6 +226,10 @@ class Main {
                 SdkCommandLine.OBJECT_PROJECT.equals(directObject)) {
             updateProject();
 
+        } else if (SdkCommandLine.VERB_UPDATE.equals(verb) &&
+                SdkCommandLine.OBJECT_ADB.equals(directObject)) {
+            updateAdb();
+
         } else {
             mSdkCommandLine.printHelpAndExit(null);
         }
@@ -390,7 +394,12 @@ class Main {
 
             // get the target skins
             displaySkinList(target, "     Skins: ");
-            
+
+            if (target.getUsbVendorId() != IAndroidTarget.NO_USB_ID) {
+                mSdkLog.printf("     Adds USB support for devices (Vendor: 0x%04X)\n",
+                        target.getUsbVendorId());
+            }
+
             index++;
         }
     }
@@ -454,16 +463,18 @@ class Main {
                 
                 // display some extra values.
                 Map<String, String> properties = info.getProperties();
-                String skin = properties.get(AvdManager.AVD_INI_SKIN_NAME);
-                if (skin != null) {
-                    mSdkLog.printf("    Skin: %s\n", skin);
-                }
-                String sdcard = properties.get(AvdManager.AVD_INI_SDCARD_SIZE);
-                if (sdcard == null) {
-                    sdcard = properties.get(AvdManager.AVD_INI_SDCARD_PATH);
-                }
-                if (sdcard != null) {
-                    mSdkLog.printf("  Sdcard: %s\n", sdcard);
+                if (properties != null) {
+                    String skin = properties.get(AvdManager.AVD_INI_SKIN_NAME);
+                    if (skin != null) {
+                        mSdkLog.printf("    Skin: %s\n", skin);
+                    }
+                    String sdcard = properties.get(AvdManager.AVD_INI_SDCARD_SIZE);
+                    if (sdcard == null) {
+                        sdcard = properties.get(AvdManager.AVD_INI_SDCARD_PATH);
+                    }
+                    if (sdcard != null) {
+                        mSdkLog.printf("  Sdcard: %s\n", sdcard);
+                    }
                 }
             }
 
@@ -508,7 +519,7 @@ class Main {
         }
 
         try {
-            boolean removePrevious = false;
+            boolean removePrevious = mSdkCommandLine.getFlagForce();
             AvdManager avdManager = new AvdManager(mSdkManager, mSdkLog);
 
             String avdName = mSdkCommandLine.getParamName();
@@ -522,8 +533,7 @@ class Main {
             
             AvdInfo info = avdManager.getAvd(avdName, false /*validAvdOnly*/);
             if (info != null) {
-                if (mSdkCommandLine.getFlagForce()) {
-                    removePrevious = true;
+                if (removePrevious) {
                     mSdkLog.warning(
                             "Android Virtual Device '%s' already exists and will be replaced.",
                             avdName);
@@ -739,7 +749,25 @@ class Main {
             errorAndExit(e.getMessage());
         }
     }
-    
+
+   /**
+     * Updates adb with the USB devices declared in the SDK add-ons.
+     */
+    private void updateAdb() {
+        try {
+            mSdkManager.updateAdb();
+
+            mSdkLog.printf(
+                    "adb has been updated. You must restart adb with the following commands\n" +
+                    "\tadb kill-server\n" +
+                    "\tadb start-server\n");
+        } catch (AndroidLocationException e) {
+            errorAndExit(e.getMessage());
+        } catch (IOException e) {
+            errorAndExit(e.getMessage());
+        }
+    }
+
     /**
      * Prompts the user to setup a hardware config for a Platform-based AVD.
      * @throws IOException 
