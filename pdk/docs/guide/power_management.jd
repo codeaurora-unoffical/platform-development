@@ -20,7 +20,7 @@ pdk.version=1.0
 <p>Android supports its own Power Management (on top of the standard Linux Power Management) designed with the premise that the CPU shouldn't consume power if no applications or services require power. For more information regarding standard Linux power management, please see <a href="http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.24.y.git;a=blob;f=Documentation/pm.txt">Linux Power Management Support</a> at <a href="http://kernel.org">http://kernel.org</a>.</p>
 <p>Android requires that applications and services request CPU resources with &quot;wake locks&quot; through the Android application framework and native Linux libraries. If there are no active wake locks, Android will shut down the CPU. </p>
 <p>The image below illustrates the Android power management architecture. </p>
-<p><img src='androidPMArchitecture.gif'></p>
+<p><img src='images/androidPMArchitecture.gif'></p>
 
 Solid elements represent Android blocks and dashed elements represent partner-specific blocks.
 

@@ -30,7 +30,7 @@ pdk.version=1.0
 <a href="#androidInstrumentationTestingCreatingTestCase">New InstrumentationTestCase</a><br/>
 <a href="#androidInstrumentationFrameworkTestCase">Exploring a Test Case</a><br/>
 <a href="#androidTestingKindsofTests">Deciding Kinds of Tests to Write</a><br/></div>
-<a href="#androidInstrumentationFrameworkTroubleshooting">Troubleshooting</a><br/></div></font></div>
+<a href="#androidInstrumentationFrameworkTroubleshooting">Troubleshooting</a><br/></div>
 
 <a name="androidInstrumentationFrameworkIntro"></a><h2>Introduction</h2>
 

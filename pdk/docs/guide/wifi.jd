@@ -6,7 +6,7 @@ pdk.version=1.0
 <div style="padding:10px">
 <a href="#androidWifiIntroduction">Introduction</a><br/>
 <a href="#androidWifiBuildingDriver">Building a Wi-Fi Library</a><br/>
-<a href="#androidWifiInterface">Interface</a><br/></div></font></div>
+<a href="#androidWifiInterface">Interface</a><br/></div>
 
 <a name="androidWifiIntroduction"></a><h2>Introduction</h2>
 
