@@ -16,9 +16,9 @@
 
 package com.android.sdkuilib.internal.repository;
 
-import com.android.sdkuilib.internal.repository.UpdaterData.ISdkListener;
 import com.android.sdkuilib.internal.widgets.AvdSelector;
 import com.android.sdkuilib.internal.widgets.AvdSelector.DisplayMode;
+import com.android.sdkuilib.repository.UpdaterWindow.ISdkListener;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridLayout;
@@ -52,7 +52,10 @@ public class AvdManagerPage extends Composite implements ISdkListener {
         Label label = new Label(parent, SWT.NONE);
         label.setText("List of existing Android Virtual Devices:");
 
-        mAvdSelector = new AvdSelector(parent, mUpdaterData.getAvdManager(), DisplayMode.MANAGER);
+        mAvdSelector = new AvdSelector(parent,
+                mUpdaterData.getOsSdkRoot(),
+                mUpdaterData.getAvdManager(),
+                DisplayMode.MANAGER);
     }
 
     @Override
