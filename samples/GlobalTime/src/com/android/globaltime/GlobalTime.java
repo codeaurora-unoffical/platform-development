@@ -230,7 +230,8 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
     private boolean mPaused = true;
     private boolean mHaveSurface = false;
     private boolean mStartAnimating = false;
-    
+    private boolean mResumeWorldFlat = false;
+
     public void surfaceCreated(SurfaceHolder holder) {
         mHaveSurface = true;
         startEGL();
@@ -348,6 +349,9 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
     
     public void onResume() {
         mPaused = false;
+        if(mDisplayWorldFlat) {
+            mResumeWorldFlat = true;
+        }
         startEGL();
     }
     
@@ -1203,6 +1207,10 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
         gl.glShadeModel(mSmoothShading ? GL10.GL_SMOOTH : GL10.GL_FLAT);
 
         gl.glTranslatef(mWrapX - 2, 0.0f, 0.0f);
+        if(mResumeWorldFlat) {
+            mWorld.draw(gl);
+            mResumeWorldFlat = false;
+        }
         worldFlat.draw(gl);
         gl.glTranslatef(2.0f, 0.0f, 0.0f);
         worldFlat.draw(gl);
