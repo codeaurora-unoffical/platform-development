@@ -99,6 +99,7 @@ public class Monkey {
 
     /** Generate hprof reports before/after monkey runs */
     private boolean mGenerateHprof;
+    private boolean mGenerateHprofForAll;
 
     /** Packages we are allowed to run, or empty if no restriction. */
     private HashSet<String> mValidPackages = new HashSet<String>();
@@ -419,6 +420,9 @@ public class Monkey {
         if (mGenerateHprof) {
             signalPersistentProcesses();
         }
+        if (mGenerateHprofForAll) {
+            signalAllProcesses();
+        }
 
         mNetworkMonitor.start();
         int crashedAtCycle = runMonkeyCycles();
@@ -437,6 +441,13 @@ public class Monkey {
 
         if (mGenerateHprof) {
             signalPersistentProcesses();
+            if (mVerbose > 0) {
+                System.out.println("// Generated profiling reports in /data/misc");
+            }
+        }
+
+        if (mGenerateHprofForAll) {
+            signalAllProcesses();
             if (mVerbose > 0) {
                 System.out.println("// Generated profiling reports in /data/misc");
             }
@@ -515,6 +526,8 @@ public class Monkey {
                     mKillProcessAfterError = true;
                 } else if (opt.equals("--hprof")) {
                     mGenerateHprof = true;
+                } else if (opt.equals("--hprof-all")) {
+                    mGenerateHprofForAll = true;
                 } else if (opt.equals("--pct-touch")) {
                     mFactors[MonkeySourceRandom.FACTOR_TOUCH] =
                         -nextOptionLong("touch events percentage");
@@ -789,6 +802,23 @@ public class Monkey {
     private void signalPersistentProcesses() {
         try {
             mAm.signalPersistentProcesses(Process.SIGNAL_USR1);
+
+            synchronized (this) {
+                wait(2000);
+            }
+        } catch (RemoteException e) {
+            System.err.println("** Failed talking with activity manager!");
+        } catch (InterruptedException e) {
+        }
+    }
+
+    /**
+     * Send SIGNAL_USR1 to all processes.  This will generate large (5mb) profiling reports
+     * in data/misc, so use with care.
+     */
+    private void signalAllProcesses() {
+        try {
+            mAm.signalAllProcesses(Process.SIGNAL_USR1);
 
             synchronized (this) {
                 wait(2000);
