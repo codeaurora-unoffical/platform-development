@@ -258,7 +258,8 @@ final class HandleNativeHeap extends ChunkHandler {
                       * only check for library addresses as defined in
                       * //device/config/prelink-linux-arm.map
                       */
-                    if (tmpStart >= 0x0000000080000000L && tmpStart <= 0x00000000BFFFFFFFL) {
+                    if ((tmpStart >= 0x10000000L && tmpEnd <= 0x3FFFFFFFL)
+                             || (tmpStart >= 0x60000000L && tmpEnd <= 0x7FFFFFFFL)) {
 
                         int index = line.indexOf('/');
 
