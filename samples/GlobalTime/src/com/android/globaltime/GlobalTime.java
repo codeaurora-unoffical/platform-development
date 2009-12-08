@@ -1449,6 +1449,11 @@ public class GlobalTime extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if(gtView == null)
+        {
+           gtView = new GTView(this);
+           setContentView(gtView);
+        }
         gtView.onResume();
         Looper.myQueue().addIdleHandler(new Idler());
     }
