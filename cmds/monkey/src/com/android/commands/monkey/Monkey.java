@@ -27,6 +27,7 @@ import android.os.Debug;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.server.data.CrashData;
 import android.view.IWindowManager;
@@ -253,8 +254,10 @@ public class Monkey {
                 synchronized (Monkey.this) {
                     mAbort = true;
                 }
+                System.out.println("Exit appNotResponding[Consider Timeouts]");
                 return (mKillProcessAfterError) ? -1 : 1;
             }
+            System.out.println("Exit appNotResponding[Ignore Timeouts]");
             return 1;
         }
     }
@@ -755,19 +758,32 @@ public class Monkey {
 
         int eventCounter = 0;
         int cycleCounter = 0;
+        long lockHeldTime  = 0;
+        long anrProcessingTime = 0;
+        long dumpsysProcessingTime = 0;
+        long nativeCrashProcessingTime = 0;
 
         boolean systemCrashed = false;
 
         while (!systemCrashed && cycleCounter < mCount) {
             synchronized (this) {
+
+                lockHeldTime = SystemClock.uptimeMillis();
+
                 if (mRequestAnrTraces) {
                     reportAnrTraces();
                     mRequestAnrTraces = false;
                 }
+
+                anrProcessingTime = SystemClock.uptimeMillis() - lockHeldTime;
+
                 if (mRequestDumpsysMemInfo) {
                     reportDumpsysMemInfo();
                     mRequestDumpsysMemInfo = false;
                 }
+
+                dumpsysProcessingTime = SystemClock.uptimeMillis() - anrProcessingTime - lockHeldTime;
+
                 if (mMonitorNativeCrashes) {
                     // first time through, when eventCounter == 0, just set up
                     // the watcher (ignore the error)
@@ -776,10 +792,26 @@ public class Monkey {
                         mAbort = mAbort || mKillProcessAfterError;
                     }
                 }
+
+                nativeCrashProcessingTime = SystemClock.uptimeMillis() - dumpsysProcessingTime - anrProcessingTime - lockHeldTime;
+
                 if (mAbort) {
                     System.out.println("** Monkey aborted due to error.");
                     System.out.println("Events injected: " + eventCounter);
                     return eventCounter;
+                }
+
+                lockHeldTime = SystemClock.uptimeMillis() - lockHeldTime;
+
+                if(lockHeldTime > 1){
+                 /* Log only when lock is held for more than 1 milli seconds, to avoid excess logging.
+                    lockHeldTime is usually 0 in iterations where in neither a ANR nor a native crash is
+                    reported.
+                  */
+                 System.out.println("Lock on current object held by Monkey for [" + lockHeldTime + "] ms");
+                 System.out.println("Lock held by ANR processing for           [" + anrProcessingTime + "] ms");
+                 System.out.println("Lock held by dumpsys processing for       [" + dumpsysProcessingTime + "] ms");
+                 System.out.println("Lock held by Native crash processing for  [" + nativeCrashProcessingTime + "] ms");
                 }
             }
 
