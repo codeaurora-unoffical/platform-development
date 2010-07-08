@@ -253,8 +253,10 @@ public class Monkey {
                 synchronized (Monkey.this) {
                     mAbort = true;
                 }
+                System.out.println("Exit appNotResponding[Consider Timeouts]");
                 return (mKillProcessAfterError) ? -1 : 1;
             }
+            System.out.println("Exit appNotResponding[Ignore Timeouts]");
             return 1;
         }
     }
