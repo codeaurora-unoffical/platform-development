@@ -902,7 +902,7 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
 
         // The '2' key zooms out
         case KeyEvent.KEYCODE_2:
-            if (!mAlphaKeySet && !mDisplayWorldFlat) {
+            if (!mAlphaKeySet && !mDisplayWorldFlat && mInitialized) {
                 mGLView.zoom(-2);
                 handled = true;
             }
@@ -910,7 +910,7 @@ class GTView extends SurfaceView implements SurfaceHolder.Callback {
 
         // The '8' key zooms in
         case KeyEvent.KEYCODE_8:
-            if (!mAlphaKeySet && !mDisplayWorldFlat) {
+            if (!mAlphaKeySet && !mDisplayWorldFlat && mInitialized) {
                 mGLView.zoom(2);
                 handled = true;
             }
