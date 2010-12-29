@@ -1067,13 +1067,17 @@ public class Monkey {
                     eventCounter++;
                     if (mCountEvents) {
                         cycleCounter++;
-                        writeScriptLog(cycleCounter);
+                        if (mScriptLog) {
+                            writeScriptLog(cycleCounter);
+                        }
                     }
                 }
             } else {
                 if (!mCountEvents) {
                     cycleCounter++;
-                    writeScriptLog(cycleCounter);
+                    if (mScriptLog) {
+                        writeScriptLog(cycleCounter);
+                    }
                 } else {
                     // Event Source has signaled that we have no more events to process
                     break;
