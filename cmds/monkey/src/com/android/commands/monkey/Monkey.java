@@ -615,7 +615,7 @@ public class Monkey {
             }
             if (mRequestAppCrashBugreport){
                 getBugreport("app_crash" + mReportProcessName + "_");
-                mRequestAnrBugreport = false;
+                mRequestAppCrashBugreport = false;
             }
             if (mRequestDumpsysMemInfo) {
                 reportDumpsysMemInfo();
@@ -1000,7 +1000,7 @@ public class Monkey {
                 }
                 if (mRequestAppCrashBugreport){
                     getBugreport("app_crash" + mReportProcessName + "_");
-                    mRequestAnrBugreport = false;
+                    mRequestAppCrashBugreport = false;
                 }
                 if (mRequestDumpsysMemInfo) {
                     reportDumpsysMemInfo();
