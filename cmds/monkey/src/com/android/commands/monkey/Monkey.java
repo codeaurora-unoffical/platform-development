@@ -272,32 +272,36 @@ public class Monkey {
         }
 
         public boolean activityResuming(String pkg) {
-            StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
-            System.out.println("    // activityResuming(" + pkg + ")");
             boolean allow = checkEnteringPackage(pkg) || (DEBUG_ALLOW_ANY_RESTARTS != 0);
-            if (!allow) {
-                if (mVerbose > 0) {
+
+            if (mVerbose > 0) {
+                StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
+                System.out.println("    // activityResuming(" + pkg + ")");
+                if (!allow) {
                     System.out.println("    // " + (allow ? "Allowing" : "Rejecting")
                             + " resume of package " + pkg);
                 }
+                StrictMode.setThreadPolicy(savedPolicy);
             }
+
             currentPackage = pkg;
-            StrictMode.setThreadPolicy(savedPolicy);
             return allow;
         }
 
         public boolean appCrashed(String processName, int pid,
                 String shortMsg, String longMsg,
                 long timeMillis, String stackTrace) {
-            StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
-            System.err.println("// CRASH: " + processName + " (pid " + pid + ")");
-            System.err.println("// Short Msg: " + shortMsg);
-            System.err.println("// Long Msg: " + longMsg);
-            System.err.println("// Build Label: " + Build.FINGERPRINT);
-            System.err.println("// Build Changelist: " + Build.VERSION.INCREMENTAL);
-            System.err.println("// Build Time: " + Build.TIME);
-            System.err.println("// " + stackTrace.replace("\n", "\n// "));
-            StrictMode.setThreadPolicy(savedPolicy);
+            if (mVerbose > 0) {
+                StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
+                System.err.println("// CRASH: " + processName + " (pid " + pid + ")");
+                System.err.println("// Short Msg: " + shortMsg);
+                System.err.println("// Long Msg: " + longMsg);
+                System.err.println("// Build Label: " + Build.FINGERPRINT);
+                System.err.println("// Build Changelist: " + Build.VERSION.INCREMENTAL);
+                System.err.println("// Build Time: " + Build.TIME);
+                System.err.println("// " + stackTrace.replace("\n", "\n// "));
+                StrictMode.setThreadPolicy(savedPolicy);
+            }
 
             if (!mIgnoreCrashes || mRequestBugreport) {
                 synchronized (Monkey.this) {
@@ -319,10 +323,12 @@ public class Monkey {
         }
 
         public int appNotResponding(String processName, int pid, String processStats) {
-            StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
-            System.err.println("// NOT RESPONDING: " + processName + " (pid " + pid + ")");
-            System.err.println(processStats);
-            StrictMode.setThreadPolicy(savedPolicy);
+            if (mVerbose > 0) {
+                StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskWrites();
+                System.err.println("// NOT RESPONDING: " + processName + " (pid " + pid + ")");
+                System.err.println(processStats);
+                StrictMode.setThreadPolicy(savedPolicy);
+            }
 
             synchronized (Monkey.this) {
                 mRequestAnrTraces = true;
