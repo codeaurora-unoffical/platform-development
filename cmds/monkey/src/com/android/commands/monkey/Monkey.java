@@ -391,6 +391,7 @@ public class Monkey {
      * @param command Command line to execute.
      */
     private void commandLineReport(String reportName, String command) {
+       if (mVerbose > 0) {
         System.err.println(reportName + ":");
         Runtime rt = Runtime.getRuntime();
         Writer logOutput = null;
@@ -429,6 +430,7 @@ public class Monkey {
             System.err.println("// Exception from " + reportName + ":");
             System.err.println(e.toString());
         }
+       }
     }
 
     // Write the numbe of iteration to the log
