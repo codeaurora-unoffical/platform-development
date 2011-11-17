@@ -176,6 +176,7 @@ public class MonkeySourceRandom implements MonkeyEventSource {
         "KEYCODE_BUTTON_START",
         "KEYCODE_BUTTON_SELECT",
         "KEYCODE_BUTTON_MODE",
+        "KEYCODE_BUTTON_ROTATION_LOCK",
 
         "TAG_LAST_KEYCODE"      // EOL.  used to keep the lists in sync
     };
