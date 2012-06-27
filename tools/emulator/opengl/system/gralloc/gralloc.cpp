@@ -764,6 +764,7 @@ static int gralloc_device_open(const hw_module_t* module,
         const_cast<float&>(dev->device.fps) = fps;
         const_cast<int&>(dev->device.minSwapInterval) = min_si;
         const_cast<int&>(dev->device.maxSwapInterval) = max_si;
+        const_cast<int&>(dev->device.numFramebuffers) = 2;
         *device = &dev->device.common;
 
         status = 0;
