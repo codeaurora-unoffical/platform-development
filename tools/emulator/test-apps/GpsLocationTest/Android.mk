@@ -22,6 +22,8 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := GpsLocationTest
 
+LOCAL_PROGUARD_ENABLED := disabled
+
 LOCAL_SDK_VERSION := 4
 
 include $(BUILD_PACKAGE)
