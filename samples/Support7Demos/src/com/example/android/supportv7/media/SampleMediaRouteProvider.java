@@ -208,19 +208,16 @@ final class SampleMediaRouteProvider extends MediaRouteProvider {
                     && intent.getData() != null) {
                 mPlaybackCount +=1;
 
+                // TODO: Handle queue ids.
                 Uri uri = intent.getData();
-                int queueBehavior = intent.getIntExtra(
-                        MediaControlIntent.EXTRA_ITEM_QUEUE_BEHAVIOR,
-                        MediaControlIntent.ITEM_QUEUE_BEHAVIOR_PLAY_NOW);
-                double contentPosition = intent.getDoubleExtra(
+                long contentPositionMillis = intent.getLongExtra(
                         MediaControlIntent.EXTRA_ITEM_CONTENT_POSITION, 0);
                 Bundle metadata = intent.getBundleExtra(MediaControlIntent.EXTRA_ITEM_METADATA);
                 Bundle headers = intent.getBundleExtra(
                         MediaControlIntent.EXTRA_ITEM_HTTP_HEADERS);
 
                 Log.d(TAG, mRouteId + ": Received play request, uri=" + uri
-                        + ", queueBehavior=" + queueBehavior
-                        + ", contentPosition=" + contentPosition
+                        + ", contentPositionMillis=" + contentPositionMillis
                         + ", metadata=" + metadata
                         + ", headers=" + headers);
 
@@ -238,7 +235,7 @@ final class SampleMediaRouteProvider extends MediaRouteProvider {
                     if (callback != null) {
                         MediaItemStatus status = new MediaItemStatus.Builder(
                                 MediaItemStatus.PLAYBACK_STATE_PLAYING)
-                                .setContentPosition(contentPosition)
+                                .setContentPosition(contentPositionMillis)
                                 .build();
 
                         Bundle result = new Bundle();
