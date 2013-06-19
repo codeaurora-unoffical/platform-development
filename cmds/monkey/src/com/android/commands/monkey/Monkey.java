@@ -390,7 +390,7 @@ public class Monkey {
                     }
                 }
             }
-            return (mKillProcessAfterError) ? -1 : 1;
+            return (mKillProcessAfterError) ? -1 : 0;
         }
     }
 
