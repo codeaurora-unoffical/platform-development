@@ -208,6 +208,9 @@ public class Monkey {
     /** The random number generator **/
     Random mRandom = null;
 
+    /** Quit after the maximum number of activity launches is reached **/
+    long mMaxActivityLaunches = -1;
+
     /** Dropped-event statistics **/
     long mDroppedKeyEvents = 0;
 
@@ -841,6 +844,8 @@ public class Monkey {
                                                       "(in milliseconds)");
                 } else if (opt.equals("--randomize-script")) {
                     mRandomizeScript = true;
+                } else if (opt.equals("--max-activity-launches")) {
+                    mMaxActivityLaunches = nextOptionLong("max activity launches");
                 } else if (opt.equals("--script-log")) {
                     mScriptLog = true;
                 } else if (opt.equals("--bugreport")) {
@@ -1057,6 +1062,7 @@ public class Monkey {
     private int runMonkeyCycles() {
         int eventCounter = 0;
         int cycleCounter = 0;
+        int numActivityLaunches = 0;
 
         boolean shouldReportAnrTraces = false;
         boolean shouldReportDumpsysMemInfo = false;
@@ -1153,6 +1159,18 @@ public class Monkey {
 
             MonkeyEvent ev = mEventSource.getNextEvent();
             if (ev != null) {
+                if  ((mMaxActivityLaunches > -1) && (ev instanceof MonkeyActivityEvent)) {
+                    if (numActivityLaunches >= mMaxActivityLaunches) {
+                        if (mVerbose > 0) {
+                            System.out.println("Exit Monkey,"
+                                + " reached max number of activity launches:"
+                                + numActivityLaunches);
+                            return eventCounter;
+                        }
+                    }
+                    numActivityLaunches++;
+                }
+
                 int injectCode = ev.injectEvent(mWm, mAm, mVerbose);
 
                 if  ((mAppSwitchDelay > 0) && (ev instanceof MonkeyActivityEvent)) {
