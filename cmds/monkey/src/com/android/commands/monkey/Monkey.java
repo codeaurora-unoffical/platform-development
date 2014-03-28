@@ -55,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
+import android.app.ActivityManager;
 /**
  * Application that injects random key events and other actions into the system.
  */
@@ -68,6 +69,12 @@ public class Monkey {
     private final static int DEBUG_ALLOW_ANY_STARTS = 0;
 
     private final static int DEBUG_ALLOW_ANY_RESTARTS = 0;
+
+    private final static String DEFAULT_LAUNCHER_PKG_NAME =
+                                "com.android.launcher";
+
+    private final static String DEFAULT_LAUNCHER_CLASS_NAME =
+                                "com.android.launcher2.Launcher";
 
     private IActivityManager mAm;
 
@@ -209,6 +216,9 @@ public class Monkey {
     /** The random number generator **/
     Random mRandom = null;
 
+    /** Quit after the maximum number of activity launches is reached **/
+    long mMaxActivityLaunches = -1;
+
     /** Dropped-event statistics **/
     long mDroppedKeyEvents = 0;
 
@@ -225,6 +235,18 @@ public class Monkey {
 
     /** Device idle time. This is for the scripted monkey. **/
     long mDeviceSleepTime = 30000;
+
+    /** The delay after App switch event. **/
+    long mAppSwitchDelay = 0;
+
+    /** Ensure Launcher in foreground before launching application */
+    boolean mLauchLauncher = false;
+
+    long mLauchLauncherDelay = -1;
+
+    String mLauncherPkgName = null;
+
+    String mLauncherClsName = null;
 
     boolean mRandomizeScript = false;
 
@@ -783,6 +805,15 @@ public class Monkey {
                     mKillProcessAfterError = true;
                 } else if (opt.equals("--hprof")) {
                     mGenerateHprof = true;
+                } else if(opt.equals("--launch-app-after-launcher")){
+                    mLauchLauncher = true;
+                    mLauncherPkgName = DEFAULT_LAUNCHER_PKG_NAME;
+                    mLauncherClsName = DEFAULT_LAUNCHER_CLASS_NAME;
+                } else if(opt.equals("--launch-app-after-app")){
+                    mLauchLauncher = true;
+                    mLauchLauncherDelay = nextOptionLong("delay (in ms) after app launch");
+                    mLauncherPkgName = nextOptionData();
+                    mLauncherClsName = nextOptionData();
                 } else if (opt.equals("--pct-touch")) {
                     int i = MonkeySourceRandom.FACTOR_TOUCH;
                     mFactors[i] = -nextOptionLong("touch events percentage");
@@ -844,6 +875,8 @@ public class Monkey {
                                                       "(in milliseconds)");
                 } else if (opt.equals("--randomize-script")) {
                     mRandomizeScript = true;
+                } else if (opt.equals("--max-activity-launches")) {
+                    mMaxActivityLaunches = nextOptionLong("max activity launches");
                 } else if (opt.equals("--script-log")) {
                     mScriptLog = true;
                 } else if (opt.equals("--bugreport")) {
@@ -851,6 +884,8 @@ public class Monkey {
                 } else if (opt.equals("--periodic-bugreport")){
                     mGetPeriodicBugreport = true;
                     mBugreportFrequency = nextOptionLong("Number of iterations");
+                } else if (opt.equals("--delay-appswitch")) {
+                    mAppSwitchDelay = nextOptionLong("Delay(in ms) after app switch event");
                 } else if (opt.equals("-h")) {
                     showUsage();
                     return false;
@@ -1068,6 +1103,7 @@ public class Monkey {
     private int runMonkeyCycles() {
         int eventCounter = 0;
         int cycleCounter = 0;
+        int numActivityLaunches = 0;
 
         boolean shouldReportAnrTraces = false;
         boolean shouldReportDumpsysMemInfo = false;
@@ -1164,7 +1200,47 @@ public class Monkey {
 
             MonkeyEvent ev = mEventSource.getNextEvent();
             if (ev != null) {
+                if (ev instanceof MonkeyActivityEvent && mLauchLauncher) {
+                    launchHomeScreen();
+                    try {
+                        long delay = mAppSwitchDelay;
+                        if (mLauchLauncherDelay >= 0) {
+                            delay = mLauchLauncherDelay;
+                        }
+                        System.out.println("After Launcher Before app launch sleep "
+                            + delay + " ms");
+                        Thread.sleep(delay);
+                    } catch (InterruptedException e1) {
+                        System.out.println("Monkey interrupted in sleep after Home Screen Launch.");
+                    }
+                }
+
+                if  ((mMaxActivityLaunches > -1) && (ev instanceof MonkeyActivityEvent)) {
+                    if (numActivityLaunches >= mMaxActivityLaunches) {
+                        if (mVerbose > 0) {
+                            System.out.println("Exit Monkey,"
+                                + " reached max number of activity launches:"
+                                + numActivityLaunches);
+                            return eventCounter;
+                        }
+                    }
+                    numActivityLaunches++;
+                }
+
                 int injectCode = ev.injectEvent(mWm, mAm, mVerbose);
+
+                if  ((mAppSwitchDelay > 0) && (ev instanceof MonkeyActivityEvent)) {
+                    if (mVerbose > 0) {
+                        System.out.println("After App switch about to sleep "
+                                + mAppSwitchDelay + " ms");
+                    }
+                    try {
+                        Thread.sleep(mAppSwitchDelay);
+                    } catch (InterruptedException e1) {
+                        System.out.println("** Monkey interrupted in sleep after App switch.");
+                    }
+                }
+
                 if (injectCode == MonkeyEvent.INJECT_FAIL) {
                     if (ev instanceof MonkeyKeyEvent) {
                         mDroppedKeyEvents++;
@@ -1211,6 +1287,44 @@ public class Monkey {
         System.out.println("Events injected: " + eventCounter);
         return eventCounter;
     }
+
+    /**
+     * Check for Top Activity if not Home, launch Home
+     **/
+    private void launchHomeScreen() {
+        //Get Current forground Activity
+        boolean launcherIsForeground = isLauncherForeground();
+        // Launch HomeScreen if it is not the current top activity
+        if (!launcherIsForeground) {
+            System.out.println("Launching Home Screen pkg:"
+                + mLauncherPkgName + " class:" + mLauncherClsName);
+            ComponentName lauchHomeApp = new ComponentName(mLauncherPkgName, mLauncherClsName);
+            MonkeyActivityEvent mActEvent = new MonkeyActivityEvent(lauchHomeApp);
+            mActEvent.injectEvent(mWm, mAm, mVerbose);
+        }
+        return;
+    }
+
+    /**
+     * Returns true if the launcher is in the foreground
+     **/
+     private boolean isLauncherForeground() {
+        boolean launcherForeground = false;
+        try {
+            List<ActivityManager.RunningAppProcessInfo> mRunningProcessInfo= mAm.getRunningAppProcesses();
+            for (ActivityManager.RunningAppProcessInfo pi : mRunningProcessInfo) {
+                if (pi.processName.equals(mLauncherPkgName) &&
+                    pi.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                    launcherForeground = true;
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("isLauncherForeground Exception, ex:" + e);
+            e.printStackTrace();
+        }
+        return launcherForeground;
+     }
 
     /**
      * Send SIGNAL_USR1 to all processes. This will generate large (5mb)
@@ -1381,6 +1495,9 @@ public class Monkey {
         usage.append("              [--script-log]\n");
         usage.append("              [--bugreport]\n");
         usage.append("              [--periodic-bugreport]\n");
+        usage.append("              [--delay-appswitch MILLISEC]\n");
+        usage.append("              [--launch-app-after-launcher\n");
+        usage.append("              [--launch-app-after-app MILLISEC PACKAGE_NAME CLASS_NAME]\n");
         usage.append("              COUNT\n");
         System.err.println(usage.toString());
     }
