@@ -28,32 +28,32 @@
 #include <vector>
 
 
+typedef abi_diff::CompatibilityStatus CompatibilityStatus;
+
 class HeaderAbiDiff {
  public:
-  enum Status {
-    COMPATIBLE = 1 << 0,
-    EXTENSION = 1 << 1,
-    INCOMPATIBLE = 1 << 2,
-  };
+  HeaderAbiDiff(const std::string &lib_name, const std::string &arch,
+                const std::string &old_dump, const std::string &new_dump,
+                const std::string &compatibility_report,
+                const std::set<std::string> &ignored_symbols)
+      : lib_name_(lib_name), arch_(arch), old_dump_(old_dump),
+        new_dump_(new_dump), cr_(compatibility_report),
+      ignored_symbols_(ignored_symbols) { }
 
-
-  HeaderAbiDiff(const std::string &old_dump, const std::string &new_dump,
-                const std::string &compatibility_report)
-      : old_dump_(old_dump), new_dump_(new_dump), cr_(compatibility_report) { }
-
-  Status GenerateCompatibilityReport();
+  CompatibilityStatus GenerateCompatibilityReport();
 
  private:
-  Status CompareTUs(const abi_dump::TranslationUnit &old_tu,
-                    const abi_dump::TranslationUnit &new_tu);
+  CompatibilityStatus CompareTUs(const abi_dump::TranslationUnit &old_tu,
+                                 const abi_dump::TranslationUnit &new_tu);
   // Collect* methods fill in the diff_tu.
   template <typename T, typename TDiff>
-  static Status Collect(
+  static CompatibilityStatus Collect(
       google::protobuf::RepeatedPtrField<T> *elements_added,
       google::protobuf::RepeatedPtrField<T> *elements_removed,
       google::protobuf::RepeatedPtrField<TDiff> *elements_diff,
       const google::protobuf::RepeatedPtrField<T> &old_srcs,
-      const google::protobuf::RepeatedPtrField<T> &new_srcs);
+      const google::protobuf::RepeatedPtrField<T> &new_srcs,
+      const std::set<std::string> &ignored_symbols);
 
   template <typename T>
   static inline void AddToMap(std::map<std::string, const T *> *dst,
@@ -63,30 +63,35 @@ class HeaderAbiDiff {
   static bool PopulateRemovedElements(
       google::protobuf::RepeatedPtrField<T> *dst,
       const std::map<std::string, const T *> &old_elements_map,
-      const std::map<std::string, const T *> &new_elements_map);
+      const std::map<std::string, const T *> &new_elements_map,
+      const std::set<std::string> &ignored_symbols);
 
   template <typename T, typename TDiff>
   static bool PopulateCommonElements(
       google::protobuf::RepeatedPtrField<TDiff> *dst,
       const std::map<std::string, const T *> &old_elements_map,
-      const std::map<std::string, const T *> &new_elements_map);
+      const std::map<std::string, const T *> &new_elements_map,
+      const std::set<std::string> &ignored_symbols);
 
   template <typename T, typename TDiff>
   static bool DumpDiffElements(
       google::protobuf::RepeatedPtrField<TDiff> *dst,
-      std::vector<std::pair<const T *, const T *>> &pairs);
+      std::vector<std::pair<const T *, const T *>> &pairs,
+      const std::set<std::string> &ignored_symbols);
 
   template <typename T>
   static bool DumpLoneElements(google::protobuf::RepeatedPtrField<T> *dst,
-                               std::vector<const T *> &elements);
+                               std::vector<const T *> &elements,
+                               const std::set<std::string> &ignored_symbols);
 
  private:
+  const std::string &lib_name_;
+  const std::string &arch_;
   const std::string &old_dump_;
   const std::string &new_dump_;
   const std::string &cr_;
+  const std::set<std::string> &ignored_symbols_;
 };
-
-typedef HeaderAbiDiff::Status Status;
 
 template <typename T>
 inline void HeaderAbiDiff::AddToMap(
@@ -97,14 +102,16 @@ inline void HeaderAbiDiff::AddToMap(
   }
 }
 
-static inline Status operator|(Status f, Status s) {
-  return static_cast<Status>(
-      static_cast<std::underlying_type<Status>::type>(f) |
-      static_cast<std::underlying_type<Status>::type>(s));
+static inline CompatibilityStatus operator|(CompatibilityStatus f,
+                                            CompatibilityStatus s) {
+  return static_cast<CompatibilityStatus>(
+      static_cast<std::underlying_type<CompatibilityStatus>::type>(f) |
+      static_cast<std::underlying_type<CompatibilityStatus>::type>(s));
 }
 
-static inline Status operator&(Status f, Status s) {
-  return static_cast<Status>(
-      static_cast<std::underlying_type<Status>::type>(f) &
-      static_cast<std::underlying_type<Status>::type>(s));
+static inline CompatibilityStatus operator&(
+    CompatibilityStatus f, CompatibilityStatus s) {
+  return static_cast<CompatibilityStatus>(
+      static_cast<std::underlying_type<CompatibilityStatus>::type>(f) &
+      static_cast<std::underlying_type<CompatibilityStatus>::type>(s));
 }
