@@ -122,7 +122,7 @@ endef
 
 ALL_SDK_FILES += $(HOST_OUT)/development/sdk/generated-api-versions.xml
 
-api_gen_jar := $(TOPDIR)prebuilts/tools/common/api-generator/api-generator-25.0.0.jar
+api_gen_jar := $(TOPDIR)prebuilts/tools/common/api-generator/api-generator-26.0.0.jar
 api_gen_deps := \
   $(TOPDIR)prebuilts/tools/common/m2/repository/net/sf/kxml/kxml2/2.3.0/kxml2-2.3.0.jar \
   $(TOPDIR)prebuilts/tools/common/m2/repository/org/ow2/asm/asm/5.0.4/asm-5.0.4.jar \
@@ -132,7 +132,7 @@ api_gen_classpath := $(subst $(space),:,$(api_gen_jar) $(api_gen_deps))
 
 
 $(HOST_OUT)/development/sdk/generated-api-versions.xml: $(android_jar_full_target)
-	java -cp $(api_gen_classpath) \
+	$(JAVA) -cp $(api_gen_classpath) \
 	  com.android.apigenerator.Main \
 	  --pattern $(TOPDIR)prebuilts/tools/common/api-versions/android-%/android.jar \
 	  --pattern $(TOPDIR)prebuilts/sdk/%/android.jar \

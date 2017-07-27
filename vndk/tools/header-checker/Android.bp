@@ -45,6 +45,7 @@ cc_defaults {
         "libclangFrontendTool",
         "libclangFrontend",
         "libclangDriver",
+        "libclangIndex",
         "libclangSerialization",
         "libclangCodeGen",
         "libclangRewriteFrontend",
@@ -84,8 +85,13 @@ cc_defaults {
     name: "header-abi-linker-lib-defaults",
 
     static_libs: [
-        "libLLVMSupport",
         "libheader-abi-util",
+        "libLLVMObject",
+        "libLLVMBitReader",
+        "libLLVMMC",
+        "libLLVMMCParser",
+        "libLLVMCore",
+        "libLLVMSupport",
     ],
 
     shared_libs: [
@@ -212,6 +218,38 @@ cc_binary_host {
     },
 }
 
+cc_binary_host {
+    name: "merge-abi-diff",
+
+    defaults: [
+        "header-checker-defaults",
+        "header-abi-linker-lib-defaults",
+    ],
+
+    srcs: [
+        "merge-abi-diff/src/*.cpp",
+    ],
+
+    static_libs: [
+        "libheader-checker-proto",
+    ],
+
+    target: {
+        linux: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+        darwin: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+    },
+}
+
 cc_library_static {
     name: "libheader-abi-util",
     defaults: [
@@ -225,8 +263,14 @@ cc_library_static {
         "header-abi-util/src/*.cpp"
     ],
     static_libs: [
+        "libLLVMObject",
+        "libLLVMBitReader",
+        "libLLVMMC",
+        "libLLVMMCParser",
+        "libLLVMCore",
         "libLLVMSupport",
     ],
+
     cflags: [
         "-Wcast-qual",
         "-Wno-long-long",
