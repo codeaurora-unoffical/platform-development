@@ -125,7 +125,7 @@ def run_header_abi_linker(output_path, inputs, version_script, api, arch):
 def make_tree(product):
     # To aid creation of reference dumps.
     make_cmd = ['build/soong/soong_ui.bash', '--make-mode', '-j',
-                'vndk', 'TARGET_PRODUCT=' + product]
+                'vndk', 'findlsdumps', 'TARGET_PRODUCT=' + product]
     subprocess.check_call(make_cmd, cwd=AOSP_DIR)
 
 def make_targets(targets, product):
@@ -163,14 +163,12 @@ def find_lib_lsdumps(target_arch, target_arch_variant,
 
     target_dir = 'android_' + target_arch + arch_variant +\
         cpu_variant + core_or_vendor_shared_str
-    for path in lsdump_paths:
-        filename = os.path.basename(path)
-        name, _ = os.path.splitext(filename)
-        sofile, _ = os.path.splitext(name)
-        if target_dir in path:
-            if libs and sofile not in libs:
-                continue
-            arch_lsdump_paths.append(os.path.join(AOSP_DIR, path.strip()))
+    for key, value in lsdump_paths.items():
+      if libs and key not in libs:
+          continue
+      for path in lsdump_paths[key]:
+          if target_dir in path:
+              arch_lsdump_paths.append(os.path.join(AOSP_DIR, path.strip()))
     return arch_lsdump_paths
 
 def run_abi_diff(old_test_dump_path, new_test_dump_path, arch, lib_name,
