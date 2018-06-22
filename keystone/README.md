@@ -1,6 +1,23 @@
 # Keystone
 
 This folder contains scripts used for building the keystone branch.
+
+## Setup
+
+The keystone builder image provides all the host dependencies
+you need to build Android. To set it up follow the instructions
+below.
+
+1. [Install Docker CE](https://www.docker.com/community-edition)
+
+1. Build the Android build container:
+
+   ```
+   docker build --tag android-build development/keystone
+   ```
+
+## Building
+
 Most developers just need to do the following:
 
 ```
@@ -8,6 +25,16 @@ python development/keystone/container.py
 export PATH
 source build/envsetup.sh
 lunch sdm845-userdebug
+make -j
+```
+
+If you would like to build a target other than the default target then:
+
+```
+python development/keystone/container.py --android_target sdm660_64
+export PATH
+source build/envsetup.sh
+lunch sdm660_64-userdebug
 make -j
 ```
 
@@ -36,12 +63,8 @@ sets within the same source tree. This is implemented in overlay.py.
 
 ## Testing
 
-To run a test follow the instructions below
+To run a test just execute it in python like so:
 
 ```
-python -m virtualenv env
-source env/bin/activate
-pip install mock
-# Now run any test module. For example:
 python overlay_test.py
 ```
