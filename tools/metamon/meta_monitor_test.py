@@ -113,7 +113,7 @@ class MetaMonitorTest(unittest.TestCase):
 
     upstream_url = 'file://' + self._upstream_dir
     tags = asyncio.get_event_loop().run_until_complete(
-        meta_monitor.fetch_target_git_tags(commands, upstream_url))
+        meta_monitor.fetch_git_tags(commands, upstream_url))
     self.assertEqual(tags, ['r0001', 'r0002'])
 
   def testCloneGitRepoSuccess(self):
@@ -122,7 +122,7 @@ class MetaMonitorTest(unittest.TestCase):
     upstream_url = 'file://' + self._upstream_dir
     local_work_dir = os.path.join(self._temp_dir, 'local')
     tag = asyncio.get_event_loop().run_until_complete(
-        meta_monitor.clone_target_meta(
+        meta_monitor.clone_git_repo(
             commands, upstream_url, local_work_dir))
     self.assertEqual(tag, 'r0002')
 
@@ -141,18 +141,17 @@ class MetaMonitorTest(unittest.TestCase):
     mock_gsutil.side_effect = _MakeMockCommand({}, {}, {})
 
     success = asyncio.get_event_loop().run_until_complete(
-        meta_monitor.archive_target_meta(
+        meta_monitor.archive_git_repo(
             commands, target, work_dir, target_work_dir, tag))
     self.assertTrue(success)
 
     mock_tar.assert_called_once_with(
         '-C', target_work_dir,
-        '-cf', 'meta-source-%s.tar.gz' % target,
-        '--use-compress-program=pigz',
+        '-czf', 'meta-source-%s.tar.gz' % target,
         '.',
         cwd=work_dir)
-    mock_gsutil.assert_called_with(
-        'cp', 'meta-source-%s.tar.gz' % target,
+    mock_gsutil.assert_called_once_with(
+        '-q', 'cp', 'meta-source-%s.tar.gz' % target,
         'gs://meta-source/%s/%s/meta-source.tar.gz' % (target, tag),
         cwd='/tmp')
 

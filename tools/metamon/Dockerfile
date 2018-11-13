@@ -11,7 +11,6 @@ FROM ubuntu:18.04
 
 # Install dependencies from the package manager.
 #   - git: Access META repositories
-#   - pigz: Parallel gzip to speed up archive creation
 #   - python: Dependency for Google Cloud command line client
 #   - python3: Dependency for META monitor service
 #   - python3-pip: Install required python library dependencies
@@ -19,7 +18,6 @@ FROM ubuntu:18.04
 RUN apt update && \
     apt install -y \
     git \
-    pigz \
     python \
     python3 \
     python3-pip \
@@ -27,10 +25,10 @@ RUN apt update && \
 
 # Google Cloud SDK installation command borrowed from...
 # https://github.com/pivotal-cf/bosh-concourse-deployments/blob/master/docker/Dockerfile
-ENV GCLOUD_SDK_VERSION=213.0.0
+ENV GCLOUD_SDK_VERSION=218.0.0
 RUN wget -q -O /usr/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-$GCLOUD_SDK_VERSION-linux-x86_64.tar.gz && \
     ( \
-      echo '236e124b906a47ad896e276f7e84bf59ecbf06c8fdde1dd541c59a3f3408962b' /usr/gcloud.tar.gz | \
+      echo 'd6b59e12dec1bff384118e154e5bdceea40f8820a515bd54c26e6a5acfafeb7b' /usr/gcloud.tar.gz | \
       sha256sum -c - \
     ) && \
     tar -C /usr/ -xzf /usr/gcloud.tar.gz && \

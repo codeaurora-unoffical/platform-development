@@ -39,6 +39,7 @@ using AbiElementList = std::list<T>;
 
 enum TextFormatIR {
   ProtobufTextFormat = 0,
+  Json = 1,
 };
 
 enum CompatibilityStatusIR {
@@ -82,6 +83,15 @@ enum LinkableMessageKind {
   FunctionKind,
   GlobalVarKind
 };
+
+template <typename K, typename V>
+std::map<V, K> CreateInverseMap(const std::map<K, V> &m) {
+  std::map<V, K> inverse_map;
+  for (auto it : m) {
+    inverse_map[it.second] = it.first;
+  }
+  return inverse_map;
+}
 
 class LinkableMessageIR {
  public:
@@ -701,14 +711,30 @@ class ElfSymbolIR {
  public:
   enum ElfSymbolKind {
     ElfFunctionKind,
-    ElfObjectKind
+    ElfObjectKind,
+  };
+
+  enum ElfSymbolBinding {
+    Weak,
+    Global,
+  };
+
+  enum ElfSymbolVisibility {
+    Default,
+    Protected,
   };
 
   const std::string GetName() const {
     return name_;
   }
 
-  ElfSymbolIR(const std::string &name) : name_(name) { }
+  ElfSymbolBinding GetBinding() const {
+    return binding_;
+  }
+
+
+  ElfSymbolIR(const std::string &name, ElfSymbolBinding binding)
+      : name_(name), binding_(binding) { }
 
   virtual ElfSymbolKind GetKind() const = 0;
 
@@ -716,15 +742,17 @@ class ElfSymbolIR {
 
  protected:
   std::string name_;
+  ElfSymbolBinding binding_;
 };
 
-class ElfFunctionIR : public ElfSymbolIR{
+class ElfFunctionIR : public ElfSymbolIR {
  public:
   ElfSymbolKind GetKind() const override {
     return ElfFunctionKind;
   }
 
-  ElfFunctionIR(const std::string &name) : ElfSymbolIR(name) { }
+  ElfFunctionIR(const std::string &name, ElfSymbolBinding binding)
+      : ElfSymbolIR(name, binding) { }
 };
 
 class ElfObjectIR : public ElfSymbolIR {
@@ -733,7 +761,8 @@ class ElfObjectIR : public ElfSymbolIR {
     return ElfObjectKind;
   }
 
-  ElfObjectIR(const std::string &name) : ElfSymbolIR(name) { }
+  ElfObjectIR(const std::string &name, ElfSymbolBinding binding)
+      : ElfSymbolIR(name, binding) { }
 };
 
 class IRDumper {
@@ -1045,6 +1074,9 @@ class TextFormatToIRReader {
     augend->insert(std::make_move_iterator(addend.begin()),
                    std::make_move_iterator(addend.end()));
   }
+
+  bool IsLinkableMessageInExportedHeaders(
+      const LinkableMessageIR *linkable_message) const;
 
   AbiElementList<RecordTypeIR> record_types_list_;
   AbiElementMap<FunctionIR> functions_;
