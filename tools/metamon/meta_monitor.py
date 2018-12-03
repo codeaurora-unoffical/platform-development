@@ -63,7 +63,7 @@ async def fetch_git_tags(commands, url):
   """Fetch tags from the provided git repository URL.
 
   Args:
-    commands: Subprocess creation object.
+    commands: MetaMonitorCommands object used to execute external commands.
     url: URL of git repo to retrieve tags from.
   Returns:
     A list of git tags in the repo. Returns an empty list when the undelying
@@ -86,7 +86,7 @@ async def clone_git_repo(commands, url, target_work_dir):
   """Clone git repository at the provided URL.
 
   Args:
-    commands: Subprocess creation object.
+    commands: MetaMonitorCommands object used to execute external commands.
     url: URL of git repo to clone.
     target_work_dir: Path to destination folder for the cloned repo.
   Returns:
@@ -102,10 +102,10 @@ async def clone_git_repo(commands, url, target_work_dir):
 
   git_clone_subproc = await commands.git(
       'clone', '--depth=1', '--quiet', url, target_work_dir, cwd=None)
-  stdout, _ = await git_clone_subproc.communicate()
+  stdout, stderr = await git_clone_subproc.communicate()
   returncode = await git_clone_subproc.wait()
   if returncode:
-    logger.warning('git clone returned %d', returncode)
+    logger.warning('git clone returned %d: %s', returncode, stderr)
     return ''
 
   git_describe_subproc = await commands.git('describe', cwd=target_work_dir)
@@ -124,7 +124,7 @@ async def archive_git_repo(
   """Zip and upload the target folder to Cloud Storage
 
   Args:
-    commands: Subprocess creation object.
+    commands: MetaMonitorCommands object used to execute external commands.
     alias: Shorthand name for the repository.
     work_dir: Top level working folder.
     target_work_dir: Path to the cloned target repository.
@@ -158,7 +158,7 @@ async def cleanup_target(commands, alias, work_dir, target_work_dir):
   """Remove all artifacts
 
   Args:
-    commands: Subprocess creation object.
+    commands: MetaMonitorCommands object used to execute external commands.
     alias: Shorthand name for the repository.
     work_dir: Top level working folder.
     target_work_dir: Path to the cloned target repository.
@@ -182,32 +182,105 @@ async def cleanup_target(commands, alias, work_dir, target_work_dir):
   return True
 
 
-async def target_meta_loop(commands, git_url, git_alias, interval, work_dir, loop):
-  """Main loop to poll a git repository for new tags.
+async def run_workflow_triggers(commands, git_url, git_alias, current_tags):
+  """Evaluates workflow trigger conditions.
+
+  Poll the remote repository for a list of its git tags. The workflow trigger
+  will be satisfied if new tags were added since the last time the repository
+  was polled.
 
   Args:
-    commands: Subprocess creation object.
+    commands: MetaMonitorCommands object used to execute external commands.
     git_url: URL to the repository to patrol.
     git_alias: Human friendly name for the repository.
-    interval: Time in seconds to wait between poll attempts.
+    current_tags: List of git tags to expect in the cloned repository. Any tags
+      that are now in the repository and not in this list will satisfy the
+      workflow trigger.
+  Returns:
+    Returns a (boolean, string[]) tuple. The first item is True when the
+    workflow trigger has been satisfied and False otherwise. The second item
+    contains a list of the current git tags in the remote repository.
+  """
+  # Retrieve current tags from the remote repo.
+  new_tags = await fetch_git_tags(commands, git_url)
+  if not new_tags:
+    return False, current_tags
+  logger.info('%s: fetched tags: %s', git_alias, ' '.join(new_tags))
+
+  # See if new git tags were added since the last check.
+  tags_delta = set(new_tags) - set(current_tags)
+  if not tags_delta:
+    logger.info('%s: no new tags', git_alias)
+    return False, current_tags
+
+  logger.info('%s: new tags: %s', git_alias, ' '.join(tags_delta))
+  return True, new_tags
+
+
+async def run_workflow_body(
+    commands, git_url, git_alias, work_dir, current_tags):
+  """Runs the actual workflow logic.
+
+  Args:
+    commands: MetaMonitorCommands object used to execute external commands.
+    git_url: URL to the repository to patrol.
+    git_alias: Human friendly name for the repository.
+    work_dir: Top level working folder for the workflow.
+    current_tags: List of git tags to expect in the cloned repository.
+  Returns:
+    True when the workflow completes successfully. False otherwise.
+  """
+  # Generate a path for the cloned repository.
+  target_work_dir = os.path.join(work_dir, git_alias)
+
+  # Clone the repo and verify that HEAD points to a new tag.
+  git_tag = await clone_git_repo(commands, git_url, target_work_dir)
+  if git_tag not in current_tags:
+    logger.warning(
+        '%s: expected new tags but HEAD points to %s', git_alias, git_tag)
+
+    # Leave a clean workspace for next time.
+    await cleanup_target(commands, git_alias, work_dir, target_work_dir)
+    return False
+
+  # Zip and archive the cloned repo to Cloud Storage.
+  archive_success = await archive_git_repo(
+      commands, git_alias, work_dir, target_work_dir, git_tag)
+  if not archive_success:
+    # Leave a clean workspace for next time.
+    await cleanup_target(commands, git_alias, work_dir, target_work_dir)
+    return False
+
+  # Leave a clean workspace for next time.
+  await cleanup_target(commands, git_alias, work_dir, target_work_dir)
+
+  # TODO(brianorr): Kick off Cloud Build for the new tag.
+  return True
+
+
+async def target_meta_loop(
+    commands, loop, git_url, git_alias, offset, interval, work_dir):
+  """Main loop to manage periodic workflow execution.
+
+  Args:
+    commands: MetaMonitorCommands object used to execute external commands.
     loop: A reference to the asyncio event loop in use.
+    git_url: URL to the repository to patrol.
+    git_alias: Human friendly name for the repository.
+    offset: Starting offset time in seconds.
+    interval: Time in seconds to wait between poll attempts.
+    work_dir: Top level working folder for the workflow.
   Returns:
     Nothing. Loops forever.
   """
-  target_work_dir = os.path.join(work_dir, git_alias)
-
   # Stagger the wakeup time of the target loops to avoid hammering the remote
   # server with requests all at once.
-  next_wakeup_time = loop.time() + random.randrange(0, interval)
+  next_wakeup_time = loop.time() + offset + 1
 
   # TODO(brianorr): Fetch META tags from CloudSQL.
   current_meta_tags = await fetch_target_git_tags(commands, git_url)
-  current_meta_tags = current_meta_tags[:-1]
 
   while True:
-    # Start from a clean workspace.
-    await cleanup_target(commands, git_alias, work_dir, target_work_dir)
-
     # Calculate the polling loop's next wake-up time. To stay on schedule we
     # keep incrementing next_wakeup_time by the polling inteval until we
     # arrive at a time in the future.
@@ -217,31 +290,9 @@ async def target_meta_loop(commands, git_url, git_alias, interval, work_dir, loo
     logger.info('%s: sleeping for %f', git_alias, sleep_time)
     await asyncio.sleep(sleep_time)
 
-    # Retrieve current tags from the remote repo.
-    new_tags = await fetch_git_tags(commands, git_url)
-    if not new_tags:
-      continue
-    logger.info('%s: fetched tags: %s', git_alias, ' '.join(new_tags))
-
-    # See if new META tags were added since the last check.
-    meta_tags_delta = set(new_tags) - set(current_tags)
-    if not meta_tags_delta:
-      logger.info('%s: no new tags', git_alias)
-      continue
-    logger.info('%s: new tags: %s', git_alias, ' '.join(meta_tags_delta))
-
-    # Clone the repo and verify that HEAD points to a new tag.
-    git_tag = await clone_git_repo(commands, git_url, target_work_dir)
-    if git_tag not in new_tags:
-      logger.warning(
-          '%s: expected new tags but HEAD points to %s', git_alias, git_tag)
-      continue
-
-    # Zip and archive the cloned repo to Cloud Storage.
-    archive_success = await archive_git_repo(
-        commands, git_alias, work_dir, target_work_dir, git_tag)
-    if not archive_success:
-      continue
-
-    # TODO(brianorr): Kick off Cloud Build for the new tag.
-    current_meta_tags = new_meta_tags
+    # Evaluate workflow triggers to see if the workflow needs to run again.
+    workflow_trigger, current_tags = await run_workflow_triggers(
+        commands, git_url, git_alias, current_tags)
+    if workflow_trigger:
+      await run_workflow_body(
+          commands, git_url, git_alias, work_dir, current_tags)

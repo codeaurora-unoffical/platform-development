@@ -155,6 +155,50 @@ class MetaMonitorTest(unittest.TestCase):
         'gs://meta-source/%s/%s/meta-source.tar.gz' % (target, tag),
         cwd='/tmp')
 
+  def testWorkflowNotTriggered(self):
+    commands = meta_monitor.MetaMonitorCommands()
+
+    loop = asyncio.get_event_loop()
+
+    upstream_url = 'file://' + self._upstream_dir
+    workflow_trigger, current_tags = loop.run_until_complete(
+        meta_monitor.run_workflow_triggers(
+            commands, upstream_url, 'sdm845', ['r0001', 'r0002']))
+
+    self.assertEqual(workflow_trigger, False)
+
+  def testWorkflowIsTriggered(self):
+    commands = meta_monitor.MetaMonitorCommands()
+
+    loop = asyncio.get_event_loop()
+
+    upstream_url = 'file://' + self._upstream_dir
+    workflow_trigger, current_tags = loop.run_until_complete(
+        meta_monitor.run_workflow_triggers(
+            commands, upstream_url, 'sdm845', ['r0001']))
+
+    self.assertEqual(workflow_trigger, True)
+    self.assertEqual(current_tags, ['r0001', 'r0002'])
+
+  def testRunWorkflowSuccess(self):
+    commands = meta_monitor.MetaMonitorCommands()
+    commands.gsutil = unittest.mock.MagicMock()
+    commands.gsutil.side_effect = _MakeMockCommand({}, {}, {})
+
+    alias = 'sdm845'
+    upstream_url = 'file://' + self._upstream_dir
+    local_work_dir = os.path.join(self._temp_dir, 'local')
+
+    workflow_success = asyncio.get_event_loop().run_until_complete(
+        meta_monitor.run_workflow_body(
+            commands, upstream_url, alias, local_work_dir, ['r0001', 'r0002']))
+    self.assertEqual(True, workflow_success)
+
+    commands.gsutil.assert_called_once_with(
+        '-q', 'cp', 'meta-source-%s.tar.gz' % alias,
+        'gs://meta-source/%s/%s/meta-source.tar.gz' % (alias, 'r0002'),
+        cwd=local_work_dir)
+
 
 if __name__ == '__main__':
   unittest.main()

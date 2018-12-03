@@ -25,10 +25,10 @@ RUN apt update && \
 
 # Google Cloud SDK installation command borrowed from...
 # https://github.com/pivotal-cf/bosh-concourse-deployments/blob/master/docker/Dockerfile
-ENV GCLOUD_SDK_VERSION=218.0.0
+ENV GCLOUD_SDK_VERSION=221.0.0
 RUN wget -q -O /usr/gcloud.tar.gz https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-$GCLOUD_SDK_VERSION-linux-x86_64.tar.gz && \
     ( \
-      echo 'd6b59e12dec1bff384118e154e5bdceea40f8820a515bd54c26e6a5acfafeb7b' /usr/gcloud.tar.gz | \
+      echo '478b380e62fd38f809d65d0369c05056d9268d9794b9c90178d2601d451cdc33' /usr/gcloud.tar.gz | \
       sha256sum -c - \
     ) && \
     tar -C /usr/ -xzf /usr/gcloud.tar.gz && \

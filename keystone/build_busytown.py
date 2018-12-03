@@ -10,8 +10,12 @@ import os
 import nsjail
 
 
+# The default set of build goals and options for building a Keystone target
+DEFAULT_BUILD_GOALS = ['droid', 'dist', 'platform_tests']
+
+
 def build(android_target, variant, nsjail_bin, chroot, dist_dir, build_id,
-          max_cpus):
+          max_cpus, build_goals):
   """Builds an Android target on a Busytown build host.
 
   Args:
@@ -23,6 +27,8 @@ def build(android_target, variant, nsjail_bin, chroot, dist_dir, build_id,
     dist_dir: A string with the path to the Android dist directory.
     build_id: A string with the Android build identifier.
     max_cpus: An integer with maximum number of CPUs.
+    build_goals: A list of strings with the goals and options to provide
+      to the build command.
 
   Returns:
     A list of commands that were executed. Each command is a list of strings.
@@ -34,8 +40,8 @@ def build(android_target, variant, nsjail_bin, chroot, dist_dir, build_id,
       '/src/development/keystone/build_keystone.sh',
       '%s-%s' % (android_target, variant),
       '/src',
-      'make', '-j', 'droid', 'showcommands', 'dist', 'platform_tests'
-  ]
+      'make', '-j',
+  ] + build_goals
   return nsjail.run(
       nsjail_bin=nsjail_bin,
       chroot=chroot,
@@ -88,6 +94,17 @@ def parse_args():
   return vars(parser.parse_args())
 
 
-def build_target(android_target, variant):
+def build_target(android_target, variant, build_goals=DEFAULT_BUILD_GOALS):
+  """Build the specified Keystone target using the standard build goals
+
+  Args:
+    android_target: A string with the name of the android target to build.
+    variant: A string with the build variant.
+    build_goals: A list of strings with the goals and options to provide
+      to the build command.
+
+  Returns:
+    None
+  """
   args = parse_args()
-  build(android_target, variant, **args)
+  build(android_target, variant, build_goals=build_goals, **args)

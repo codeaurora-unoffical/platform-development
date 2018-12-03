@@ -58,13 +58,16 @@ def main():
   # Use actual subprocess commands in production.
   commands = meta_monitor.MetaMonitorCommands()
 
-  # Create a polling loop coroutine for each Qualcomm SoC.
+  # Create a polling loop coroutine for each git repository. Provide an initial
+  # time offset for each coroutine so they don't all hammer the remote server(s)
+  # at once.
   loop = asyncio.get_event_loop()
   targets = [
       meta_monitor.target_meta_loop(
-          commands, target_list[0], target_list[1], args.meta_poll_interval,
-          work_dir, loop)
-      for target_list in META_TARGETS]
+          commands, loop, target_list[0], target_list[1],
+          idx * args.meta_poll_interval / len(META_TARGETS),
+          args.meta_poll_interval, work_dir)
+      for idx, target_list in enumerate(META_TARGETS)]
 
   # Use asyncio.gather() to submit all coroutines to the event loop as
   # recommended by @gvanrossum in the GitHub issue comments at
