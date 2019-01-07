@@ -63,7 +63,7 @@ branches for each device.
 
 We can unify the development of all devices from the same SoC family with the help
 of filesystem overlays. Specifically, we can use OverlayFS. Here we shall focus
-on OverayFS at a high level. See the 
+on OverayFS at a high level. See the
 [documentation on kernel.org](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt)
 for details on how OverlayFS works.
 
@@ -139,5 +139,9 @@ build directory.
 To run a test just execute it in python like so:
 
 ```
+python container_test.py
+python nsjail_test.py
 python overlay_test.py
 ```
+
+The `dockerfile_test.py` unit test is designed to be run from Cloud Build.

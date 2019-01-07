@@ -81,7 +81,7 @@ def run(nsjail_bin,
   """
   executed_commands = []
 
-  if user_id and group_id:
+  if user_id is not None and group_id is not None:
     commands = create_user(user_id, group_id)
     executed_commands.extend(commands)
     os.setgid(group_id)

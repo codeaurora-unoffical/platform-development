@@ -7,6 +7,21 @@ steps:
   - name: 'src'
     path: '/src'
 - name: 'gcr.io/google.com/android-keystone-182020/android-build'
+  args: ['python', 'container_test.py']
+  volumes:
+  - name: 'src'
+    path: '/src'
+- name: 'gcr.io/google.com/android-keystone-182020/android-build'
+  args: ['python', 'nsjail_test.py']
+  volumes:
+  - name: 'src'
+    path: '/src'
+- name: 'gcr.io/google.com/android-keystone-182020/android-build'
+  args: ['python', 'overlay_test.py']
+  volumes:
+  - name: 'src'
+    path: '/src'
+- name: 'gcr.io/google.com/android-keystone-182020/android-build'
   args: ['ls']
   volumes:
   - name: 'src'
