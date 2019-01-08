@@ -9,8 +9,8 @@ from __future__ import division
 from __future__ import print_function
 
 OVERLAY_MAP = {
-    'sdm845': ['qcom-LA.UM.7.3-incoming'],
-    'sdm845_8.3': ['qcom-LA.UM.8.3.r1-incoming'],
+    'sdm845': ['qcom-LA.UM.8.3.r1-incoming', 'keystone'],
+    'sdm845_7.3': ['qcom-LA.UM.7.3-incoming', 'keystone'],
     'sdm845_gms': ['qcom-LA.UM.7.3-incoming', 'gms'],
     'sdm660_64': ['qcom-LA.UM.7.2-incoming'],
     'cuttlestone_x86_phone': ['cuttlestone'],

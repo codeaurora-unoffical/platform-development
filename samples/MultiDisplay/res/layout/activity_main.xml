@@ -15,33 +15,16 @@
   ~ limitations under the License.
   -->
 
-<LinearLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/RootView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Spinner
-            android:id="@+id/spinner"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
-
-        <Button
-            android:id="@+id/button2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/refresh"
-            android:onClick="updateDisplayList"/>
-    </LinearLayout>
+    android:background="@color/launcher_bg_color"
+    android:fitsSystemWindows="true" >
 
     <GridView
-        android:id="@+id/app_grid"
+        android:id="@+id/pinned_app_grid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="@dimen/app_grid_margin_top"
@@ -50,6 +33,32 @@
         android:columnWidth="@dimen/app_list_col_width"
         android:verticalSpacing="@dimen/app_list_horizontal_spacing"
         android:horizontalSpacing="@dimen/app_list_vertical_spacing"
-        android:numColumns="auto_fit">
-    </GridView>
-</LinearLayout>
+        android:numColumns="auto_fit" />
+
+    <ImageButton
+        android:id="@+id/OptionsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="@dimen/options_button_margin"
+        android:layout_marginBottom="@dimen/options_button_margin"
+        android:src="@drawable/ic_settings"
+        android:background="@null"/>
+
+    <View
+        android:id="@+id/Scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/mtrl_background_scrim"
+        android:visibility="invisible" />
+
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/app_picker_fab_margin">
+
+        <include layout="@layout/app_picker_layout"/>
+    </FrameLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
