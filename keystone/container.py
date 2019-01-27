@@ -7,12 +7,14 @@ from __future__ import print_function
 import argparse
 import os
 import overlay_configs
+import re
 import subprocess
 
 _IMAGE = 'android-build'
 
 
-def run(container_command, android_target, docker_bin, meta_dir):
+def run(container_command, android_target, docker_bin, meta_dir,
+        local_device_path = None):
   """Runs a command in an Android Build container.
 
   Args:
@@ -22,6 +24,8 @@ def run(container_command, android_target, docker_bin, meta_dir):
       inside the container.
     docker_bin: A string that invokes docker.
     meta_dir: An optional path to a folder containing the META build.
+    local_device_path: If provided, the local USB device at this path is mounted
+      inside the container.
 
   Returns:
     A list of strings with the command executed.
@@ -33,6 +37,12 @@ def run(container_command, android_target, docker_bin, meta_dir):
   if meta_dir:
     docker_command.extend([
         '--mount', 'type=bind,source=%s,target=/meta,readonly' % meta_dir
+    ])
+  if local_device_path:
+    docker_command.extend([
+        '--mount',
+        'type=bind,source=%s,target=%s' % (local_device_path,
+                                           local_device_path),
     ])
   docker_command.extend([
       '--rm',
@@ -52,6 +62,18 @@ def run(container_command, android_target, docker_bin, meta_dir):
   subprocess.check_call(docker_command)
 
   return docker_command
+
+
+def get_local_device_path():
+  """Gets the device path for the local connected Qualcomm USB device."""
+  # Use `lsusb` to find the connected USB devices.
+  for line in subprocess.check_output(['lsusb']).split('\n'):
+    # Extract the bus and device numbers from the `lsusb` result.
+    bus_and_device = re.match(r'.*([0-9]{3}).*([0-9]{3}).*Qualcomm.*', line)
+    if bus_and_device:
+      return '/dev/bus/usb/%s/%s' % (bus_and_device.group(1),
+                                     bus_and_device.group(2))
+  raise RuntimeError('Unable to find a connected Qualcomm device.')
 
 
 def main():
@@ -76,11 +98,34 @@ def main():
       '--meta_dir',
       default='',
       help='Full path to META folder. Default to \'\'')
+  parser.add_argument(
+      '--mount_local_device',
+      action='store_true',
+      help='If provided, the local connected Qualcomm USB device is mounted '
+      'inside the container. WARNING: Using this flag will cause the adb server '
+      'to be killed on the host machine.')
   args = parser.parse_args()
+
+  if args.mount_local_device:
+    # A device can only communicate with one adb server at a time, so the adb server is
+    # killed on the host machine.
+    for line in subprocess.check_output(['ps','-eo','cmd']).split('\n'):
+      if re.match(r'adb.*fork-server.*', line):
+        print('An adb server is running on your host machine. This server must be '
+              'killed to use the --mount_local_device flag.')
+        print('Continue? [y/N]: ', end='')
+        if raw_input().lower() != 'y':
+          exit()
+        subprocess.check_call(['adb', 'kill-server'])
+    local_device_path = get_local_device_path()
+  else:
+    local_device_path = None
+
   run(container_command=args.container_command,
       android_target=args.android_target,
       docker_bin=args.docker_bin,
-      meta_dir=args.meta_dir)
+      meta_dir=args.meta_dir,
+      local_device_path=local_device_path)
 
 
 if __name__ == '__main__':

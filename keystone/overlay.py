@@ -34,7 +34,7 @@ class Overlay(object):
   """Manages filesystem overlays of Android source tree.
   """
 
-  def _MountOverlay(self, source_dir, overlay_dirs, target):
+  def _MountOverlay(self, source_dir, overlay_dirs, target, overlaid_dir):
     """Mounts the selected overlay directory.
 
     OverlayFS creates a merge directory composed of a union
@@ -54,6 +54,8 @@ class Overlay(object):
       overlay_dirs: A list of strings with the paths to the overlay
         directory to apply.
       target: A string with the name of the target to be prepared.
+      overlaid_dir: A string with the path to the source with the overlays
+        applied to it.
     """
     lowerdirs = overlay_dirs
     lowerdirs.append(source_dir)
@@ -81,9 +83,9 @@ class Overlay(object):
         '--types', 'overlay',
         '--options', mount_options,
         'overlay',
-        source_dir
+        overlaid_dir
     ]
-    unmount_command = ['sudo', 'umount', source_dir]
+    unmount_command = ['sudo', 'umount', overlaid_dir]
     self._AddMount(mount_command, unmount_command)
 
   def _BindMount(self, source_dir, dest_dir):
@@ -139,13 +141,20 @@ class Overlay(object):
                   for mount in self._mounts]
     return mount_info
 
-  def __init__(self, target, source_dir):
+  def __init__(self, target, source_dir, overlaid_dir=None):
     """Inits Overlay with the details of what is going to be overlaid.
 
     Args:
       target: A string with the name of the target to be prepared.
       source_dir: A string with the path to the Android platform source.
+      overlaid_dir: A string with the path to the source with the overlays
+        applied to it. If none is provided, the overlays shall be applied
+        directly to provided source_dir.
     """
+
+    if not overlaid_dir:
+      overlaid_dir = source_dir
+
     self._overlay_dirs = None
     self._mounts = []
 
@@ -157,11 +166,12 @@ class Overlay(object):
 
     # Save a reference to the workspace out directory.
     out_dir = os.path.join(source_dir, 'out')
+    overlaid_out_dir = os.path.join(overlaid_dir, 'out')
     if not os.path.exists(out_dir):
       os.makedirs(out_dir)
     original_out_dir = tempfile.mkdtemp(prefix='outtmp_')
     self._BindMount(out_dir, original_out_dir)
-    post_overlay_bind_mounts.append((original_out_dir, out_dir))
+    post_overlay_bind_mounts.append((original_out_dir, overlaid_out_dir))
 
     overlay_dirs = []
     for overlay_dir in overlay_configs.OVERLAY_MAP[target]:
@@ -192,17 +202,17 @@ class Overlay(object):
           path_to = os.path.join(dynamic_overlay_dir, path_relative_to)
           self._CopyFileMount(path_from, path_to)
         elif os.path.isdir(path_from):
-          # Here we create intermediate bind mounts because the 'overlays/' 
-          # directory will ultimately be hidden in the final OverlayFS target, 
+          # Here we create intermediate bind mounts because the 'overlays/'
+          # directory will ultimately be hidden in the final OverlayFS target,
           # making any dir under 'overlays/' unreachable.
-          path_to = os.path.join(source_dir, path_relative_to)
+          path_to = os.path.join(overlaid_dir, path_relative_to)
           bind_intermediate_dir = tempfile.mkdtemp(prefix='bindtmp_')
           self._BindMount(path_from, bind_intermediate_dir)
           post_overlay_bind_mounts.append((bind_intermediate_dir, path_to))
         else:
           raise ValueError("Path '%s' must be a file or directory" % path_from)
 
-    self._MountOverlay(source_dir, overlay_dirs, target)
+    self._MountOverlay(source_dir, overlay_dirs, target, overlaid_dir)
     self._overlay_dirs = overlay_dirs
     print('Applied overlays ' + ' '.join(self._overlay_dirs))
 

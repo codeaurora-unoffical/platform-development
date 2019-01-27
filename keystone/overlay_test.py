@@ -64,6 +64,7 @@ class OverlayTest(unittest.TestCase):
   def setUp(self):
     overlay.Mount = self.FakeMount
     self.source_dir = tempfile.mkdtemp()
+    self.overlaid_dir = tempfile.mkdtemp()
     os.mkdir(os.path.join(self.source_dir, 'overlays'))
     os.mkdir(os.path.join(self.source_dir,
                           'overlays', 'unittest1'))
@@ -100,6 +101,32 @@ class OverlayTest(unittest.TestCase):
     self.assertIn('sudo umount %s' % os.path.join(self.source_dir),
                   unmount_commands)
     self.assertIn('sudo umount %s' % os.path.join(self.source_dir, 'out'),
+                  unmount_commands)
+
+  def testOverlaidDirectory(self):
+    o = overlay.Overlay(
+        target='unittest',
+        source_dir=self.source_dir,
+        overlaid_dir=self.overlaid_dir)
+    self.assertIsNotNone(o)
+    mounts = o.GetMountInfo()
+    mount_commands = [' '.join(mount['mount_command']) for mount in mounts]
+    unmount_commands = [' '.join(mount['unmount_command']) for mount in mounts]
+    self.assertTrue(
+        any([
+            re.match(
+                'sudo mount --types overlay --options '
+                'lowerdir=%s/overlays/unittest1:%s/overlays/unittest2:.*/ovtmp_.*:%s,'
+                'upperdir=%s/out/overlays/unittest/artifacts,'
+                'workdir=%s/out/overlays/unittest/work '
+                'overlay %s' %
+                (self.source_dir, self.source_dir, self.source_dir,
+                 self.source_dir, self.source_dir, self.overlaid_dir), command)
+            for command in mount_commands
+        ]))
+    self.assertIn('sudo umount %s' % os.path.join(self.overlaid_dir),
+                  unmount_commands)
+    self.assertIn('sudo umount %s' % os.path.join(self.overlaid_dir, 'out'),
                   unmount_commands)
 
   def testValidTargetFilesystemViewDirectory(self):

@@ -20,21 +20,12 @@ below.
 
 ## Building
 
-Most developers just need to do the following:
+Specify your build target using the --android_target flag.
 
 ```
-python development/keystone/container.py
+python development/keystone/container.py --android_target sdm845
 source build/envsetup.sh
 lunch sdm845-userdebug
-make -j
-```
-
-If you would like to build a target other than the default target then:
-
-```
-python development/keystone/container.py --android_target sdm660_64
-source build/envsetup.sh
-lunch sdm660_64-userdebug
 make -j
 ```
 

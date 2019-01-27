@@ -14,6 +14,7 @@ import argparse
 import os
 import subprocess
 from overlay import Overlay
+import tempfile
 
 GROUPADD_COMMAND = 'groupadd'
 USERADD_COMMAND = 'useradd'
@@ -79,6 +80,9 @@ def run(nsjail_bin,
   Returns:
     A list of commands that were executed. Each command is a list of strings.
   """
+
+  nsjail_src_dir = source_dir
+
   executed_commands = []
 
   if user_id is not None and group_id is not None:
@@ -91,13 +95,14 @@ def run(nsjail_bin,
   # Apply the overlay for the selected Android target
   # to the source directory if overlays are present
   if os.path.exists(os.path.join(source_dir, 'overlays')):
-    overlay = Overlay(android_target, source_dir)
+    nsjail_src_dir = tempfile.mkdtemp(prefix='srctmp_')
+    overlay = Overlay(android_target, source_dir, nsjail_src_dir)
 
   script_dir = os.path.dirname(os.path.abspath(__file__))
   config_file = os.path.join(script_dir, 'nsjail.cfg')
   nsjail_command = [
       nsjail_bin,
-      '--bindmount', source_dir + ':/src',
+      '--bindmount', nsjail_src_dir + ':/src',
       '--chroot', chroot,
       '--env', 'USER=android-build',
       '--config', config_file

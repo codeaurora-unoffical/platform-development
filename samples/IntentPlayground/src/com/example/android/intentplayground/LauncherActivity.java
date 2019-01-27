@@ -16,49 +16,62 @@
 
 package com.example.android.intentplayground;
 
+import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.graphics.PixelFormat;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.WindowManager.LayoutParams;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+import static android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+
+import static com.example.android.intentplayground.Node.newTaskNode;
 
 /**
- * A singleInstance activity that is responsible for a launching a bootstrap stack of activities
+ * A singleInstance activity that is responsible for a launching a bootstrap stack of activities.
  */
 public class LauncherActivity extends BaseActivity {
-    private TestBase mTester;
     public static final String TAG = "LauncherActivity";
+    private static final long SNACKBAR_DELAY = 75;
+    private TestBase mTester;
+    private boolean mFirstLaunch;
+    private View mSnackBarRootView;
+    private boolean mSnackBarIsVisible = false;
+    private boolean mDontLaunch = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Node mRoot = new Node(new ComponentName(this, LauncherActivity.class));
-        // Describe initial setup of tasks
-        // create singleTask, singleInstance, and two documents in separate tasks
-        mRoot.addChild( new Node(new ComponentName(this, SingleTaskActivity.class)))
-                .addChild( new Node(new ComponentName(this, DocumentLaunchAlwaysActivity.class)))
-                .addChild( new Node(new ComponentName(this, DocumentLaunchIntoActivity.class)));
-        // Create three tasks with three activities each, with affinity set
-        Node taskAffinity1 = new Node(new ComponentName(this, TaskAffinity1Activity.class));
-        taskAffinity1
-                .addChild(new Node(new ComponentName(this, TaskAffinity1Activity.class)))
-                .addChild(new Node(new ComponentName(this, TaskAffinity1Activity.class)));
-        Node taskAffinity2 = new Node(new ComponentName(this, ClearTaskOnLaunchActivity.class));
-        taskAffinity2
-                .addChild(new Node(new ComponentName(this, TaskAffinity2Activity.class)))
-                .addChild(new Node(new ComponentName(this, TaskAffinity2Activity.class)));
-        Node taskAffinity3 = new Node(new ComponentName(this, TaskAffinity3Activity.class));
-        taskAffinity3
-                .addChild(new Node(new ComponentName(this, TaskAffinity3Activity.class)))
-                .addChild(new Node(new ComponentName(this, TaskAffinity3Activity.class)));
-        mRoot.addChild(taskAffinity1).addChild(taskAffinity2).addChild(taskAffinity3);
-        mTester = new TestBase(this, mRoot);
-        mTester.setupActivities(TestBase.LaunchStyle.TASK_STACK_BUILDER);
+        setupTaskPreset();
+        mFirstLaunch = true;
     }
 
     /**
-     * Launches activity with the selected options
+     * Launches activity with the selected options.
      */
-    public void launchActivity(Intent customIntent) {
-        customIntent.putExtra(TestBase.EXPECTED_HIERARCHY, mTester.computeExpected(customIntent));
-        startActivity(customIntent);
+    @Override
+    public void launchActivity(Intent intent) {
+        startActivityForResult(intent, LAUNCH_REQUEST_CODE);
+        // If people press back we want them to see the overview rather than the launch fragment.
+        // To achieve this we pop the launchFragment from the stack when we go to the next activity.
+        getSupportFragmentManager().popBackStack();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
     }
 }
