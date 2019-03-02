@@ -1,3 +1,0 @@
-android-build ALL = NOPASSWD: /sbin/iptables
-android-build ALL=(root) NOPASSWD: /bin/mount
-android-build ALL=(root) NOPASSWD: /bin/umount

@@ -15,13 +15,16 @@
 #ifndef SO_FILE_PARSER_H_
 #define SO_FILE_PARSER_H_
 
+#include "exported_symbol_set.h"
 #include "ir_representation.h"
 
 #include <memory>
 #include <map>
 #include <string>
 
+
 namespace abi_util {
+
 
 class SoFileParser {
  public:
@@ -29,11 +32,11 @@ class SoFileParser {
 
   virtual ~SoFileParser() {}
 
-  virtual const std::map<std::string, ElfFunctionIR> &GetFunctions() const = 0;
-
-  virtual const std::map<std::string, ElfObjectIR> &GetGlobVars() const = 0;
+  virtual std::unique_ptr<ExportedSymbolSet> Parse() = 0;
 };
 
+
 }  // namespace abi_util
+
 
 #endif  // SO_FILE_PARSER_H_

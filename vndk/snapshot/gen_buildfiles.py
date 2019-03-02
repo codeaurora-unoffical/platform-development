@@ -25,9 +25,10 @@ import utils
 
 
 class GenBuildFile(object):
-    """Generates Android.mk and Android.bp for VNDK snapshot.
+    """Generates Android.bp for VNDK snapshot.
 
     VNDK snapshot directory structure under prebuilts/vndk/v{version}:
+        Android.bp
         {SNAPSHOT_ARCH}/
             Android.bp
             arch-{TARGET_ARCH}-{TARGET_ARCH_VARIANT}/
@@ -52,7 +53,7 @@ class GenBuildFile(object):
                 (various *.txt configuration files, e.g. ld.config.*.txt)
         ... (other {SNAPSHOT_ARCH}/ directories)
         common/
-            Android.mk
+            Android.bp
             NOTICE_FILES/
                 (license files, e.g. libfoo.so.txt)
     """
@@ -76,11 +77,13 @@ class GenBuildFile(object):
         self._vndk_version = vndk_version
         self._etc_paths = self._get_etc_paths()
         self._snapshot_archs = utils.get_snapshot_archs(install_dir)
-        self._mkfile = os.path.join(install_dir, utils.ANDROID_MK_PATH)
+        self._root_bpfile = os.path.join(install_dir, utils.ROOT_BP_PATH)
+        self._common_bpfile = os.path.join(install_dir, utils.COMMON_BP_PATH)
         self._vndk_core = self._parse_lib_list('vndkcore.libraries.txt')
         self._vndk_sp = self._parse_lib_list(
             os.path.basename(self._etc_paths['vndksp.libraries.txt']))
         self._vndk_private = self._parse_lib_list('vndkprivate.libraries.txt')
+        self._modules_with_notice = self._get_modules_with_notice()
 
     def _get_etc_paths(self):
         """Returns a map of relative file paths for each ETC module."""
@@ -112,30 +115,45 @@ class GenBuildFile(object):
                 lib_map[arch] = f.read().strip().split('\n')
         return lib_map
 
-    def generate_android_mk(self):
-        """Autogenerates Android.mk."""
+    def _get_modules_with_notice(self):
+        """Returns a list of modules that have associated notice files. """
+        notice_paths = glob.glob(
+            os.path.join(self._install_dir, utils.NOTICE_FILES_DIR_PATH,
+                         '*.txt'))
+        return [os.path.splitext(os.path.basename(p))[0] for p in notice_paths]
 
-        logging.info('Generating Android.mk for snapshot v{}'.format(
+    def generate_root_android_bp(self):
+        """Autogenerates Android.bp."""
+
+        logging.info('Generating Android.bp for snapshot v{}'.format(
             self._vndk_version))
         etc_buildrules = []
         for prebuilt in self.ETC_MODULES:
-            # Starting from P (VNDK version >= 28), ld.config.VER.txt is not
-            # installed as a prebuilt but is built and installed from the
-            # source tree at the time the VNDK snapshot is installed to the
-            # system.img.
-            if prebuilt == 'ld.config.txt' and self._vndk_version >= 28:
+            # ld.config.VER.txt is not installed as a prebuilt but is built and
+            # installed from thesource tree at the time the VNDK snapshot is
+            # installed to the system.img.
+            if prebuilt == 'ld.config.txt':
                 continue
             etc_buildrules.append(self._gen_etc_prebuilt(prebuilt))
 
-        with open(self._mkfile, 'w') as mkfile:
-            mkfile.write(self._gen_autogen_msg('#'))
-            mkfile.write('\n')
-            mkfile.write('LOCAL_PATH := $(call my-dir)\n')
-            mkfile.write('\n')
-            mkfile.write('\n\n'.join(etc_buildrules))
-            mkfile.write('\n')
+        with open(self._root_bpfile, 'w') as bpfile:
+            bpfile.write(self._gen_autogen_msg('/'))
+            bpfile.write('\n')
+            bpfile.write('\n'.join(etc_buildrules))
+            bpfile.write('\n')
 
-        logging.info('Successfully generated {}'.format(self._mkfile))
+        logging.info('Successfully generated {}'.format(self._root_bpfile))
+
+    def generate_common_android_bp(self):
+        """Autogenerates common/Android.bp."""
+
+        logging.info('Generating common/Android.bp for snapshot v{}'.format(
+            self._vndk_version))
+        with open(self._common_bpfile, 'w') as bpfile:
+            bpfile.write(self._gen_autogen_msg('/'))
+            for module in self._modules_with_notice:
+                bpfile.write('\n')
+                bpfile.write(self._gen_notice_filegroup(module))
 
     def generate_android_bp(self):
         """Autogenerates Android.bp."""
@@ -245,19 +263,46 @@ class GenBuildFile(object):
         etc_path = self._etc_paths[prebuilt]
         etc_sub_path = etc_path[etc_path.index('/') + 1:]
 
-        return ('#######################################\n'
-                '# {prebuilt}\n'
-                'include $(CLEAR_VARS)\n'
-                'LOCAL_MODULE := {versioned_name}\n'
-                'LOCAL_SRC_FILES := ../$(TARGET_ARCH)/{etc_sub_path}\n'
-                'LOCAL_MODULE_CLASS := ETC\n'
-                'LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)\n'
-                'LOCAL_MODULE_STEM := $(LOCAL_MODULE)\n'
-                'include $(BUILD_PREBUILT)\n'.format(
-                    prebuilt=prebuilt,
-                    versioned_name=self._get_versioned_name(
-                        prebuilt, None, is_etc=True),
-                    etc_sub_path=etc_sub_path))
+        prebuilt_etc = ('prebuilt_etc {{\n'
+                        '{ind}name: "{versioned_name}",\n'
+                        '{ind}target: {{\n'.format(
+                            ind=self.INDENT,
+                            versioned_name=self._get_versioned_name(
+                                prebuilt, None, is_etc=True)))
+        for arch in self._snapshot_archs:
+            prebuilt_etc += ('{ind}{ind}android_{arch}: {{\n'
+                             '{ind}{ind}{ind}src: "{arch}/{etc_sub_path}",\n'
+                             '{ind}{ind}}},\n'.format(
+                                 ind=self.INDENT,
+                                 arch=arch,
+                                 etc_sub_path=etc_sub_path))
+        prebuilt_etc += ('{ind}}},\n'
+                         '}}\n'.format(ind=self.INDENT))
+        return prebuilt_etc
+
+    def _gen_notice_filegroup(self, module):
+        """Generates a notice filegroup build rule for a given module.
+
+        Args:
+          notice: string, module name
+        """
+        return ('filegroup {{\n'
+                '{ind}name: "{filegroup_name}",\n'
+                '{ind}srcs: ["{notice_dir}/{module}.txt"],\n'
+                '}}\n'.format(
+                    ind=self.INDENT,
+                    filegroup_name=self._get_notice_filegroup_name(module),
+                    module=module,
+                    notice_dir=utils.NOTICE_FILES_DIR_NAME))
+
+    def _get_notice_filegroup_name(self, module):
+        """ Gets a notice filegroup module name for a given module.
+
+        Args:
+          notice: string, module name.
+        """
+        return 'vndk-v{ver}-{module}-notice'.format(
+            ver=self._vndk_version, module=module)
 
     def _gen_bp_phony(self, arch, is_binder32=False):
         """Generates build rule for phony package 'vndk_v{ver}_{arch}'.
@@ -342,17 +387,10 @@ class GenBuildFile(object):
               prebuilt: string, name of prebuilt object
             """
             notice = ''
-            notice_file_name = '{}.txt'.format(prebuilt)
-            notice_dir = os.path.join(self._install_dir,
-                                      utils.NOTICE_FILES_DIR_PATH)
-            notice_files = utils.find(notice_dir, [notice_file_name])
-            if len(notice_files) > 0:
-                notice_dir_relpath = os.path.relpath(
-                    os.path.join(notice_dir), src_root)
-                notice = '{ind}notice: "{notice_file_path}",\n'.format(
+            if prebuilt in self._modules_with_notice:
+                notice = '{ind}notice: ":{notice_filegroup}",\n'.format(
                     ind=self.INDENT,
-                    notice_file_path=os.path.join(notice_dir_relpath,
-                                                  notice_files[0]))
+                    notice_filegroup=self._get_notice_filegroup_name(prebuilt))
             return notice
 
         def get_rel_install_path(prebuilt):
@@ -486,7 +524,8 @@ def main():
     utils.set_logging_config(args.verbose)
 
     buildfile_generator = GenBuildFile(install_dir, vndk_version)
-    buildfile_generator.generate_android_mk()
+    buildfile_generator.generate_root_android_bp()
+    buildfile_generator.generate_common_android_bp()
     buildfile_generator.generate_android_bp()
 
     logging.info('Done.')
