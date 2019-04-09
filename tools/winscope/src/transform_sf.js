@@ -15,9 +15,11 @@
  */
 
 import {transform, nanos_to_string, get_visible_chip} from './transform.js'
-import {preprocess, get_transform_value} from './matrix_utils.js'
 
-const FLAG_HIDDEN = 0x1;
+// Layer flags
+const FLAG_HIDDEN = 0x01;
+const FLAG_OPAQUE = 0x02;
+const FLAG_SECURE = 0x80;
 
 var RELATIVE_Z_CHIP = {short: 'RelZ',
     long: "Is relative Z-ordered to another surface",
@@ -31,7 +33,7 @@ var MISSING_LAYER = {short: 'MissingLayer',
 
 function transform_layer(layer, {parentBounds, parentHidden}) {
 
-  function get_bounds(layer) {
+  function get_size(layer) {
     var size = layer.size || {w: 0, h: 0};
     return {
       left: 0,
@@ -41,17 +43,14 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
     };
   }
 
-  function get_crop(layer, bounds) {
-    if (layer.crop != undefined && layer.crop.right > -1 && layer.crop.bottom > -1) {
-      return {
-        left: layer.crop.left || 0,
-        right: layer.crop.right  || 0,
-        top: layer.crop.top || 0,
-        bottom: layer.crop.bottom || 0
-      };
-    } else {
-      return bounds;
-    }
+  function get_crop(layer) {
+    var crop = layer.crop || {left: 0, top: 0, right: 0 , bottom:0};
+    return {
+      left: crop.left || 0,
+      right: crop.right  || 0,
+      top: crop.top || 0,
+      bottom: crop.bottom || 0
+    };
   }
 
   function intersect(bounds, crop) {
@@ -63,40 +62,48 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
     };
   }
 
-  function has_size(rect) {
+  function is_empty_rect(rect) {
     var right = rect.right || 0;
     var left = rect.left || 0;
     var top = rect.top || 0;
     var bottom = rect.bottom || 0;
 
-    return (right - left) > 0 && (bottom - top) > 0;
+    return (right - left) <= 0 || (bottom - top) <= 0;
+  }
+
+  function get_cropped_bounds(layer, parentBounds) {
+    var size = get_size(layer);
+    var crop = get_crop(layer);
+    if (!is_empty_rect(size) && !is_empty_rect(crop)) {
+      return intersect(size, crop);
+    }
+    if (!is_empty_rect(size)) {
+      return size;
+    }
+    if (!is_empty_rect(crop)) {
+      return crop;
+    }
+    return parentBounds || { left: 0, right: 0, top: 0, bottom: 0 };
   }
 
   function offset_to(bounds, x, y) {
     return {
-      left: bounds.left + x,
-      right: bounds.right + x,
-      top: bounds.top + y,
-      bottom: bounds.bottom + y
+      right: bounds.right - (bounds.left - x),
+      bottom: bounds.bottom - (bounds.top - y),
+      left: x,
+      top: y,
     };
   }
 
   function transform_bounds(layer, parentBounds) {
-    var result = parentBounds || { left: 0, right: 0, top: 0, bottom: 0 };
-    var bounds = get_bounds(layer);
-    var crop = get_crop(layer, bounds);
-    var position = {
-      x : (layer.position != undefined) ? layer.position.x || 0 : 0,
-      y : (layer.position != undefined) ? layer.position.y || 0 : 0,
-    }
-    if (has_size(bounds)) {
-      result = offset_to(intersect(bounds, crop), position.x, position.y)
-    }
-    else if (has_size(crop)) {
-      result = offset_to(crop, position.x, position.y)
-    }
+    var result = layer.bounds || get_cropped_bounds(layer, parentBounds);
+    var tx = (layer.position) ? layer.position.x || 0 : 0;
+    var ty = (layer.position) ? layer.position.y || 0 : 0;
+    result = offset_to(result, 0, 0);
     result.label = layer.name;
-    result.transform = get_transform_value(layer.transform);
+    result.transform = layer.transform;
+    result.transform.tx = tx;
+    result.transform.ty = ty;
     return result;
   }
 
@@ -108,11 +115,11 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
     return region == undefined ||
         region.rect == undefined ||
         region.rect.length == 0 ||
-        region.rect.every(function(r) { return !has_size(r) } );
+        region.rect.every(function(r) { return is_empty_rect(r) } );
   }
 
   /**
-   * Checks if the layer is visible on screen accorindg to its type,
+   * Checks if the layer is visible on screen according to its type,
    * active buffer content, alpha and visible regions.
    *
    * @param {layer} layer
@@ -125,7 +132,21 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
     return visible;
   }
 
-  preprocess(layer);
+  function postprocess_flags(layer) {
+    if (!layer.flags) return;
+    var verboseFlags = [];
+    if (layer.flags & FLAG_HIDDEN) {
+      verboseFlags.push("HIDDEN");
+    }
+    if (layer.flags & FLAG_OPAQUE) {
+      verboseFlags.push("OPAQUE");
+    }
+    if (layer.flags & FLAG_SECURE) {
+      verboseFlags.push("SECURE");
+    }
+
+    layer.flags = verboseFlags.join('|') + " (" + layer.flags + ")";
+  }
 
   var chips = [];
   var rect = transform_bounds(layer, parentBounds);
@@ -136,6 +157,12 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
   } else {
     rect = undefined;
   }
+
+  var bounds = undefined;
+  if (layer.name.startsWith("Display Root#0") && layer.sourceBounds) {
+    bounds = {width: layer.sourceBounds.right, height: layer.sourceBounds.bottom};
+  }
+
   if ((layer.zOrderRelativeOf || -1) !== -1) {
     chips.push(RELATIVE_Z_CHIP);
   }
@@ -149,6 +176,8 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
   var transform_layer_with_parent_hidden =
       (layer) => transform_layer(layer, {parentBounds: rect, parentHidden: hidden});
 
+  postprocess_flags(layer);
+
   return transform({
     obj: layer,
     kind: 'layer',
@@ -157,6 +186,7 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
       [layer.resolvedChildren, transform_layer_with_parent_hidden],
     ],
     rect,
+    bounds,
     highlight: rect,
     chips,
     visible,
@@ -174,10 +204,13 @@ function missingLayer(childId) {
 function transform_layers(layers) {
   var idToItem = {};
   var isChild = {}
-  layers.layers.forEach((e) => {
+
+  var layersList = layers.layers || [];
+
+  layersList.forEach((e) => {
     idToItem[e.id] = e;
   });
-  layers.layers.forEach((e) => {
+  layersList.forEach((e) => {
     e.resolvedChildren = [];
     if (Array.isArray(e.children)) {
       e.resolvedChildren = e.children.map(
@@ -191,7 +224,7 @@ function transform_layers(layers) {
     }
   });
 
-  var roots = layers.layers.filter((e) => !isChild[e.id]);
+  var roots = layersList.filter((e) => !isChild[e.id]);
 
   function foreachTree(nodes, fun) {
     nodes.forEach((n) => {
@@ -209,7 +242,7 @@ function transform_layers(layers) {
     idToTransformed[n.obj.id] = n;
   });
   var flattened = [];
-  layers.layers.forEach((e) => {
+  layersList.forEach((e) => {
     flattened.push(idToTransformed[e.id]);
   });
 
