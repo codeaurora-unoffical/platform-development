@@ -29,6 +29,8 @@ public final class MultiClientInputMethod extends Service {
     private static final String TAG = "MultiClientInputMethod";
     private static final boolean DEBUG = false;
 
+    // last client that had active InputConnection.
+    int mLastClientId = MultiClientInputMethodServiceDelegate.INVALID_CLIENT_ID;
     SoftInputWindowManager mSoftInputWindowManager;
     MultiClientInputMethodServiceDelegate mDelegate;
 
@@ -49,7 +51,8 @@ public final class MultiClientInputMethod extends Service {
                     @Override
                     public void addClient(int clientId, int uid, int pid,
                             int selfReportedDisplayId) {
-                        final ClientCallbackImpl callback = new ClientCallbackImpl(mDelegate,
+                        final ClientCallbackImpl callback = new ClientCallbackImpl(
+                                MultiClientInputMethod.this, mDelegate,
                                 mSoftInputWindowManager, clientId, uid, pid, selfReportedDisplayId);
                         if (DEBUG) {
                             Log.v(TAG, "addClient clientId=" + clientId + " uid=" + uid
