@@ -305,7 +305,7 @@ public class Monkey {
                             return true;
                         }
                     } else {
-                       return false;
+                        return false;
                     }
                 } catch (RemoteException e) {
                     Logger.err.println("** Failed talking with package manager!");
