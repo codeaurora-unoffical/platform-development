@@ -68,7 +68,16 @@ android_jar_intermediates := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/androi
 android_jar_full_target := $(android_jar_intermediates)/android.jar
 android_jar_src_target := $(android_jar_intermediates)/android-stubs-src.jar
 
-$(android_jar_full_target): $(full_target)
+# unzip and zip android.jar before packaging it. (workaround for b/127733650)
+full_target_repackaged := $(android_jar_intermediates)/repackaged/repackaged.jar
+$(full_target_repackaged): $(full_target) | $(ZIPTIME)
+	@echo Repackaging SDK jar: $@
+	$(hide) rm -rf $(dir $@) && mkdir -p $(dir $@)
+	unzip -q $< -d $(dir $@)
+	cd $(dir $@) && zip -rqX $(notdir $@) *
+	$(remove-timestamps-from-package)
+
+$(android_jar_full_target): $(full_target_repackaged)
 	@echo Package SDK Stubs: $@
 	$(copy-file-to-target)
 
@@ -101,6 +110,10 @@ ALL_SDK_FILES += $(HOST_OUT_COMMON_INTERMEDIATES)/JAVA_LIBRARIES/shrinkedAndroid
 
 # ======= Lint API XML ===========
 ALL_SDK_FILES += $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/api-stubs-docs_generated-api-versions.xml
+
+# ============ SDK AIDL ============
+$(eval $(call copy-one-file,$(FRAMEWORK_AIDL),$(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/framework.aidl))
+ALL_SDK_FILES += $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/framework.aidl
 
 # ============ System SDK ============
 full_target := $(call intermediates-dir-for,JAVA_LIBRARIES,android_system_stubs_current,,COMMON)/classes.jar
