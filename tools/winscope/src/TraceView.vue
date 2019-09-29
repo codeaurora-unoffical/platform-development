@@ -14,7 +14,7 @@
 -->
 <template>
   <md-card-content class="container">
-    <md-card class="rects">
+    <md-card class="rects" v-if="hasScreenView">
       <md-whiteframe md-tag="md-toolbar" md-elevation="0" class="card-toolbar md-transparent md-dense">
         <h2 class="md-title">Screen</h2>
       </md-whiteframe>
@@ -48,23 +48,23 @@ import Rects from './Rects.vue'
 
 import { transform_json } from './transform.js'
 import { format_transform_type, is_simple_transform } from './matrix_utils.js'
+import { DATA_TYPES } from './decode.js'
 
 function formatProto(obj) {
   if (!obj || !obj.$type) {
     return;
   }
-  if (obj.$type.fullName === '.android.surfaceflinger.RectProto' ||
-    obj.$type.fullName === '.android.graphics.RectProto') {
+  if (obj.$type.name === 'RectProto') {
     return `(${obj.left}, ${obj.top})  -  (${obj.right}, ${obj.bottom})`;
-  } else if (obj.$type.fullName === '.android.surfaceflinger.FloatRectProto') {
+  } else if (obj.$type.name === 'FloatRectProto') {
     return `(${obj.left.toFixed(3)}, ${obj.top.toFixed(3)})  -  (${obj.right.toFixed(3)}, ${obj.bottom.toFixed(3)})`;
-  } else if (obj.$type.fullName === '.android.surfaceflinger.PositionProto') {
+  } else if (obj.$type.name === 'PositionProto') {
     return `(${obj.x.toFixed(3)}, ${obj.y.toFixed(3)})`;
-  } else if (obj.$type.fullName === '.android.surfaceflinger.SizeProto') {
+  } else if (obj.$type.name === 'SizeProto') {
     return `${obj.w} x ${obj.h}`;
-  } else if (obj.$type.fullName === '.android.surfaceflinger.ColorProto') {
+  } else if (obj.$type.name === 'ColorProto') {
     return `r:${obj.r} g:${obj.g} \n b:${obj.b} a:${obj.a}`;
-  } else if (obj.$type.fullName === '.android.surfaceflinger.TransformProto') {
+  } else if (obj.$type.name === 'TransformProto') {
     var transform_type = format_transform_type(obj);
     if (is_simple_transform(obj)) {
       return `${transform_type}`;
@@ -179,7 +179,10 @@ export default {
       };
       filter.includeChildren = true;
       return filter;
-    }
+    },
+    hasScreenView() {
+      return this.file.type !== DATA_TYPES.TRANSACTION;
+    },
   },
   components: {
     'tree-view': TreeView,

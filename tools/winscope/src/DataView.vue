@@ -15,17 +15,27 @@
 <template>
   <md-card v-if="file">
     <md-card-header>
-      <div class="md-title">
-        <md-icon>{{file.type.icon}}</md-icon> {{file.filename}}
-      </div>
+      <md-card-header-text>
+        <div class="md-title">
+          <md-icon>{{file.type.icon}}</md-icon> {{file.filename}}
+        </div>
+      </md-card-header-text>
+      <md-button :href="file.blobUrl" :download="file.filename" class="md-icon-button">
+        <md-icon>save_alt</md-icon>
+      </md-button>
     </md-card-header>
     <traceview v-if="isTrace" :store="store" :file="file" ref="view" />
     <videoview v-if="isVideo" :file="file" ref="view" />
+    <logview v-if="isLog" :file="file" ref="view" />
+    <div v-if="!(isTrace || isVideo || isLog)">
+      <h1 class="bad">Unrecognized DataType</h1>
+    </div>
   </md-card>
 </template>
 <script>
 import TraceView from './TraceView.vue'
 import VideoView from './VideoView.vue'
+import LogView from './LogView.vue'
 import { DATA_TYPES } from './decode.js'
 
 export default {
@@ -45,16 +55,29 @@ export default {
   computed: {
     isTrace() {
       return this.file.type == DATA_TYPES.WINDOW_MANAGER ||
-          this.file.type == DATA_TYPES.SURFACE_FLINGER || this.file.type == DATA_TYPES.TRANSACTION;
+        this.file.type == DATA_TYPES.SURFACE_FLINGER ||
+        this.file.type == DATA_TYPES.TRANSACTION || this.file.type == DATA_TYPES.WAYLAND
     },
     isVideo() {
       return this.file.type == DATA_TYPES.SCREEN_RECORDING;
-    }
+    },
+    isLog() {
+      return this.file.type == DATA_TYPES.WINDOW_LOG
+    },
   },
   components: {
     'traceview': TraceView,
     'videoview': VideoView,
+    'logview': LogView,
   }
 }
 
 </script>
+<style>
+.bad {
+  margin: 1em 1em 1em 1em;
+  font-size: 4em;
+  color: red;
+}
+
+</style>
