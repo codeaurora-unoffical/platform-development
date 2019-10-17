@@ -16,18 +16,24 @@
 
 
 import jsonProtoDefs from 'frameworks/base/core/proto/android/server/windowmanagertrace.proto'
+import jsonProtoLogDefs from 'frameworks/base/core/proto/android/server/windowmanagerlog.proto'
 import jsonProtoDefsSF from 'frameworks/native/services/surfaceflinger/layerproto/layerstrace.proto'
 import jsonProtoDefsTrans from 'frameworks/native/cmds/surfacereplayer/proto/src/trace.proto'
+import jsonProtoDefsWL from 'vendor/google_arc/libs/wayland_service/waylandtrace.proto'
 import protobuf from 'protobufjs'
 import { transform_layers, transform_layers_trace } from './transform_sf.js'
 import { transform_window_service, transform_window_trace } from './transform_wm.js'
 import { transform_transaction_trace } from './transform_transaction.js'
+import { transform_wl_outputstate, transform_wayland_trace } from './transform_wl.js'
+import { transform_protolog } from './transform_protolog.js'
 import { fill_transform_data } from './matrix_utils.js'
 import { mp4Decoder } from './decodeVideo.js'
 
 var protoDefs = protobuf.Root.fromJSON(jsonProtoDefs)
+  .addJSON(jsonProtoLogDefs.nested)
   .addJSON(jsonProtoDefsSF.nested)
-  .addJSON(jsonProtoDefsTrans.nested);
+  .addJSON(jsonProtoDefsTrans.nested)
+  .addJSON(jsonProtoDefsWL.nested);
 
 var WindowTraceMessage = protoDefs.lookupType(
   "com.android.server.wm.WindowManagerTraceFileProto");
@@ -36,28 +42,50 @@ var WindowMessage = protoDefs.lookupType(
 var LayersMessage = protoDefs.lookupType("android.surfaceflinger.LayersProto");
 var LayersTraceMessage = protoDefs.lookupType("android.surfaceflinger.LayersTraceFileProto");
 var TransactionMessage = protoDefs.lookupType("Trace");
+var WaylandMessage = protoDefs.lookupType("org.chromium.arc.wayland_composer.OutputStateProto");
+var WaylandTraceMessage = protoDefs.lookupType("org.chromium.arc.wayland_composer.TraceFileProto");
+var WindowLogMessage = protoDefs.lookupType(
+  "com.android.server.wm.WindowManagerLogFileProto");
+var LogMessage = protoDefs.lookupType(
+  "com.android.server.wm.ProtoLogMessage");
 
 const LAYER_TRACE_MAGIC_NUMBER = [0x09, 0x4c, 0x59, 0x52, 0x54, 0x52, 0x41, 0x43, 0x45] // .LYRTRACE
 const WINDOW_TRACE_MAGIC_NUMBER = [0x09, 0x57, 0x49, 0x4e, 0x54, 0x52, 0x41, 0x43, 0x45] // .WINTRACE
 const MPEG4_MAGIC_NMBER = [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32] // ....ftypmp42
+const WAYLAND_TRACE_MAGIC_NUMBER = [0x09, 0x57, 0x59, 0x4c, 0x54, 0x52, 0x41, 0x43, 0x45] // .WYLTRACE
+const WINDOW_LOG_MAGIC_NUMBER = [0x09, 0x57, 0x49, 0x4e, 0x44, 0x4f, 0x4c, 0x4f, 0x47] // .WINDOLOG
 
 const DATA_TYPES = {
   WINDOW_MANAGER: {
     name: "WindowManager",
     icon: "view_compact",
+    mime: "application/octet-stream",
   },
   SURFACE_FLINGER: {
     name: "SurfaceFlinger",
     icon: "filter_none",
+    mime: "application/octet-stream",
   },
   SCREEN_RECORDING: {
     name: "Screen recording",
     icon: "videocam",
+    mime: "video/mp4",
   },
   TRANSACTION: {
     name: "Transaction",
     icon: "timeline",
+    mime: "application/octet-stream",
   },
+  WAYLAND: {
+    name: "Wayland",
+    icon: "filter_none",
+    mime: "application/octet-stream",
+  },
+  WINDOW_LOG: {
+    name: "WindowManager log",
+    icon: "notes",
+    mime: "application/octet-stream",
+  }
 }
 
 const FILE_TYPES = {
@@ -81,6 +109,16 @@ const FILE_TYPES = {
       timeline: true,
     },
   },
+  'wl_trace': {
+    name: "Wayland trace",
+    dataType: DATA_TYPES.WAYLAND,
+    decoder: protoDecoder,
+    decoderParams: {
+      protoType: WaylandTraceMessage,
+      transform: transform_wayland_trace,
+      timeline: true,
+    },
+  },
   'layers_dump': {
     name: "SurfaceFlinger dump",
     dataType: DATA_TYPES.SURFACE_FLINGER,
@@ -101,6 +139,16 @@ const FILE_TYPES = {
       timeline: false,
     },
   },
+  'wl_dump': {
+    name: "Wayland dump",
+    dataType: DATA_TYPES.WAYLAND,
+    decoder: protoDecoder,
+    decoderParams: {
+      protoType: WaylandMessage,
+      transform: transform_wl_outputstate,
+      timeline: false,
+    },
+  },
   'screen_recording': {
     name: "Screen recording",
     dataType: DATA_TYPES.SCREEN_RECORDING,
@@ -116,6 +164,16 @@ const FILE_TYPES = {
     decoderParams: {
       protoType: TransactionMessage,
       transform: transform_transaction_trace,
+      timeline: true,
+    }
+  },
+  'window_log': {
+    name: "WindowManager log",
+    dataType: DATA_TYPES.WINDOW_LOG,
+    decoder: protoDecoder,
+    decoderParams: {
+      protoType: WindowLogMessage,
+      transform: transform_protolog,
       timeline: true,
     }
   }
@@ -167,21 +225,27 @@ function protoDecoder(buffer, fileType, fileName, store) {
   } else {
     data = [transformed];
   }
-  return dataFile(fileName, data.map(x => x.timestamp), data, fileType.dataType);
+  let blobUrl = URL.createObjectURL(new Blob([buffer], { type: fileType.dataType.mime }));
+  return dataFile(fileName, data.map(x => x.timestamp), data, blobUrl, fileType.dataType);
 }
 
 function videoDecoder(buffer, fileType, fileName, store) {
-  var [data, timeline] = fileType.decoderParams.videoDecoder(buffer)
-  return dataFile(fileName, timeline, data, fileType.dataType);
+  let [data, timeline] = fileType.decoderParams.videoDecoder(buffer);
+  let blobUrl = URL.createObjectURL(new Blob([data], { type: fileType.dataType.mime }));
+  return dataFile(fileName, timeline, blobUrl, blobUrl, fileType.dataType);
 }
 
-function dataFile(filename, timeline, data, type) {
+function dataFile(filename, timeline, data, blobUrl, type) {
   return {
     filename: filename,
     timeline: timeline,
     data: data,
+    blobUrl: blobUrl,
     type: type,
     selectedIndex: 0,
+    destroy() {
+      URL.revokeObjectURL(this.blobUrl);
+    },
   }
 }
 
@@ -215,7 +279,13 @@ function detectAndDecode(buffer, fileName, store) {
   if (arrayStartsWith(buffer, MPEG4_MAGIC_NMBER)) {
     return decodedFile(FILE_TYPES['screen_recording'], buffer, fileName, store);
   }
-  for (var name of ['transaction', 'layers_dump', 'window_dump']) {
+  if (arrayStartsWith(buffer, WAYLAND_TRACE_MAGIC_NUMBER)) {
+    return decodedFile(FILE_TYPES['wl_trace'], buffer, fileName, store);
+  }
+  if (arrayStartsWith(buffer, WINDOW_LOG_MAGIC_NUMBER)) {
+    return decodedFile(FILE_TYPES['window_log'], buffer, fileName, store);
+  }
+  for (var name of ['transaction', 'layers_dump', 'window_dump', 'wl_dump']) {
     try {
       return decodedFile(FILE_TYPES[name], buffer, fileName, store);
     } catch (ex) {
@@ -225,4 +295,4 @@ function detectAndDecode(buffer, fileName, store) {
   throw new Error('Unable to detect file');
 }
 
-export { detectAndDecode, dataFile, DATA_TYPES, FILE_TYPES };
+export { detectAndDecode, DATA_TYPES, FILE_TYPES };

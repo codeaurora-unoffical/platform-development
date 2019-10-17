@@ -46,7 +46,7 @@ LOG_LEVEL = logging.WARNING
 PORT = 5544
 
 # Keep in sync with WINSCOPE_PROXY_VERSION in Winscope DataAdb.vue
-VERSION = '0.1'
+VERSION = '0.4'
 
 WINSCOPE_VERSION_HEADER = "Winscope-Proxy-Version"
 WINSCOPE_TOKEN_HEADER = "Winscope-Token"
@@ -92,6 +92,41 @@ TRACE_TARGETS = {
         "/data/local/tmp/screen.winscope.mp4",
         'screenrecord --bit-rate 8M /data/local/tmp/screen.winscope.mp4 >/dev/null 2>&1 &\necho "ScreenRecorder started."',
         'pkill -l SIGINT screenrecord >/dev/null 2>&1'
+    ),
+    "transaction": TraceTarget(
+        "/data/misc/wmtrace/transaction_trace.pb",
+        'su root service call SurfaceFlinger 1020 i32 1\necho "SF transactions recording started."',
+        'su root service call SurfaceFlinger 1020 i32 0 >/dev/null 2>&1'
+    ),
+    "window_log": TraceTarget(
+        "/data/misc/wmtrace/wm_log.pb",
+        'su root cmd window logging start\necho "WM logging started."',
+        'su root cmd window logging stop >/dev/null 2>&1'
+    ),
+}
+
+
+class DumpTarget:
+    """Defines a single parameter to trace.
+
+    Attributes:
+        file: the path on the device the dump results are saved to.
+        dump_command: command to dump state to file.
+    """
+
+    def __init__(self, file: str, dump_command: str) -> None:
+        self.file = file
+        self.dump_command = dump_command
+
+
+DUMP_TARGETS = {
+    "window_dump": DumpTarget(
+        "/data/local/tmp/wm_dump.pb",
+        'su root dumpsys window --proto > /data/local/tmp/wm_dump.pb'
+    ),
+    "layers_dump": DumpTarget(
+        "/data/local/tmp/sf_dump.pb",
+        'su root dumpsys SurfaceFlinger --proto > /data/local/tmp/sf_dump.pb'
     )
 }
 
@@ -230,14 +265,14 @@ def call_adb_outfile(params: str, outfile, device: str = None, stdin: bytes = No
 
 
 class ListDevicesEndpoint(RequestEndpoint):
-    ADB_INFO_RE = re.compile("^([A-Z0-9]+)\\s+(\\w+)(.*model:(\\w+))?")
+    ADB_INFO_RE = re.compile("^([A-Za-z0-9\\-]+)\\s+(\\w+)(.*model:(\\w+))?")
 
     def process(self, server, path):
         lines = list(filter(None, call_adb('devices -l').split('\n')))
         devices = {m.group(1): {
             'authorised': str(m.group(2)) != 'unauthorized',
             'model': m.group(4).replace('_', ' ') if m.group(4) else ''
-        } for m in [ListDevicesEndpoint.ADB_INFO_RE.match(d) for d in lines[1:]]}
+        } for m in [ListDevicesEndpoint.ADB_INFO_RE.match(d) for d in lines[1:]] if m}
         j = json.dumps(devices)
         log.debug("Detected devices: " + j)
         server.respond(HTTPStatus.OK, j.encode("utf-8"), "text/json")
@@ -245,7 +280,7 @@ class ListDevicesEndpoint(RequestEndpoint):
 
 class DeviceRequestEndpoint(RequestEndpoint):
     def process(self, server, path):
-        if len(path) > 0 and re.fullmatch("[A-Z0-9]+", path[0]):
+        if len(path) > 0 and re.fullmatch("[A-Za-z0-9\\-]+", path[0]):
             self.process_with_device(server, path[1:], path[0])
         else:
             raise BadRequest("Device id not specified")
@@ -259,10 +294,12 @@ class FetchFileEndpoint(DeviceRequestEndpoint):
     def process_with_device(self, server, path, device_id):
         if len(path) != 1:
             raise BadRequest("File not specified")
-        if path[0] not in TRACE_TARGETS:
+        if path[0] in TRACE_TARGETS:
+            file_path = TRACE_TARGETS[path[0]].file
+        elif path[0] in DUMP_TARGETS:
+            file_path = DUMP_TARGETS[path[0]].file
+        else:
             raise BadRequest("Unknown file specified")
-
-        file_path = TRACE_TARGETS[path[0]].file
 
         with NamedTemporaryFile() as tmp:
             log.debug("Fetching file {} from device to {}".format(file_path, tmp.name))
@@ -423,8 +460,9 @@ class EndTrace(DeviceRequestEndpoint):
             server.respond(HTTPStatus.OK, out, "text/plain")
         else:
             raise AdbError(
-                "Error tracing the device\nOutput:\n" + out.decode(
-                    "utf-8") + "\nCommand: adb -s {} shell\nInput:\n".format(device_id) + command.decode("utf-8"))
+                "Error tracing the device\n### Output ###\n" + out.decode(
+                    "utf-8") + "\n### Command: adb -s {} shell ###\n### Input ###\n".format(device_id) + command.decode(
+                    "utf-8"))
 
 
 class StatusEndpoint(DeviceRequestEndpoint):
@@ -435,6 +473,39 @@ class StatusEndpoint(DeviceRequestEndpoint):
         server.respond(HTTPStatus.OK, str(TRACE_THREADS[device_id].is_alive()).encode("utf-8"), "text/plain")
 
 
+class DumpEndpoint(DeviceRequestEndpoint):
+    def process_with_device(self, server, path, device_id):
+        try:
+            length = int(server.headers["Content-Length"])
+        except KeyError as err:
+            raise BadRequest("Missing Content-Length header\n" + str(err))
+        except ValueError as err:
+            raise BadRequest("Content length unreadable\n" + str(err))
+        try:
+            requested_types = json.loads(server.rfile.read(length).decode("utf-8"))
+            requested_traces = [DUMP_TARGETS[t] for t in requested_types]
+        except KeyError as err:
+            raise BadRequest("Unsupported trace target\n" + str(err))
+        if device_id in TRACE_THREADS:
+            BadRequest("Trace in progress for {}".format(device_id))
+        if not check_root(device_id):
+            raise AdbError(
+                "Unable to acquire root privileges on the device - check the output of 'adb -s {} shell su root id'"
+                    .format(device_id))
+        command = '\n'.join(t.dump_command for t in requested_traces)
+        shell = ['adb', '-s', device_id, 'shell']
+        log.debug("Starting dump shell {}".format(' '.join(shell)))
+        process = subprocess.Popen(shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   stdin=subprocess.PIPE, start_new_session=True)
+        log.debug("Starting dump on device {}".format(device_id))
+        out, err = process.communicate(command.encode('utf-8'))
+        if process.returncode != 0:
+            raise AdbError("Error executing command:\n" + command + "\n\n### OUTPUT ###" + out.decode('utf-8') + "\n"
+                           + err.decode('utf-8'))
+        log.debug("Dump finished on device {}".format(device_id))
+        server.respond(HTTPStatus.OK, b'', "text/plain")
+
+
 class ADBWinscopeProxy(BaseHTTPRequestHandler):
     def __init__(self, request, client_address, server):
         self.router = RequestRouter(self)
@@ -443,6 +514,7 @@ class ADBWinscopeProxy(BaseHTTPRequestHandler):
         self.router.register_endpoint(RequestType.GET, "fetch", FetchFileEndpoint())
         self.router.register_endpoint(RequestType.POST, "start", StartTrace())
         self.router.register_endpoint(RequestType.POST, "end", EndTrace())
+        self.router.register_endpoint(RequestType.POST, "dump", DumpEndpoint())
         super().__init__(request, client_address, server)
 
     def respond(self, code: int, data: bytes, mime: str) -> None:

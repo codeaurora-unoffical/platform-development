@@ -26,6 +26,7 @@
       <md-card v-if="dataLoaded">
         <md-whiteframe md-tag="md-toolbar" md-elevation="0" class="card-toolbar md-transparent md-dense">
           <h2 class="md-title">Timeline</h2>
+          <datafilter v-for="file in files" :key="file.filename" :store="store" :file="file" />
         </md-whiteframe>
         <md-list>
           <md-list-item v-for="(file, idx) in files" :key="file.filename">
@@ -46,6 +47,7 @@ import DataView from './DataView.vue'
 import DataInput from './DataInput.vue'
 import LocalStore from './localstore.js'
 import DataAdb from './DataAdb.vue'
+import DataFilter from './DataFilter.vue'
 
 const APP_NAME = "Winscope"
 
@@ -85,6 +87,7 @@ export default {
   },
   methods: {
     clear() {
+      this.files.forEach(function(item) { item.destroy(); })
       this.files = [];
       this.activeDataView = null;
     },
@@ -175,6 +178,7 @@ export default {
     'dataview': DataView,
     'datainput': DataInput,
     'dataadb': DataAdb,
+    'datafilter': DataFilter,
   },
 }
 
@@ -197,7 +201,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.md-layout > .md-card {
+.md-layout>.md-card {
   margin: 0.5em;
 }
 
