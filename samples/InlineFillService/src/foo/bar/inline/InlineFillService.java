@@ -13,13 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package foo.bar.fill;
+package foo.bar.inline;
 
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.slice.Slice;
 import android.app.slice.SliceSpec;
 import android.content.Context;
+import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.CancellationSignal;
 import android.service.autofill.AutofillService;
@@ -28,6 +29,7 @@ import android.service.autofill.FillCallback;
 import android.service.autofill.FillContext;
 import android.service.autofill.FillRequest;
 import android.service.autofill.FillResponse;
+import android.service.autofill.InlinePresentation;
 import android.service.autofill.SaveCallback;
 import android.service.autofill.SaveInfo;
 import android.service.autofill.SaveRequest;
@@ -43,14 +45,11 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import foo.bar.fill.R;
 
 /**
  * A basic {@link AutofillService} implementation that only shows dynamic-generated datasets
@@ -82,8 +81,13 @@ public class InlineFillService extends AutofillService {
             return;
         }
 
+        final InlineSuggestionsRequest inlineRequest = request.getInlineSuggestionsRequest();
+        final int maxSuggestionsCount = inlineRequest == null
+                ? NUMBER_DATASETS
+                : Math.min(inlineRequest.getMaxSuggestionCount(), NUMBER_DATASETS);
+
         // Create the base response
-        FillResponse response = createResponse(this, fields, NUMBER_DATASETS,
+        FillResponse response = createResponse(this, fields, maxSuggestionsCount,
                 request.getInlineSuggestionsRequest());
         callback.onSuccess(response);
     }
@@ -95,45 +99,9 @@ public class InlineFillService extends AutofillService {
         FillResponse.Builder response = new FillResponse.Builder();
         // 1.Add the dynamic datasets
         for (int i = 1; i <= numDatasets; i++) {
-            Dataset unlockedDataset = newUnlockedDataset(fields, packageName, i);
+            Dataset unlockedDataset = newUnlockedDataset(context, fields, packageName, i,
+                    inlineRequest);
             response.addDataset(unlockedDataset);
-        }
-
-        if (inlineRequest != null) {
-            Log.d(TAG, "Found InlineSuggestionsRequest in FillRequest: " + inlineRequest);
-            final int maxSuggestionsCount = Math.min(inlineRequest.getMaxSuggestionCount(),
-                    NUMBER_DATASETS);
-            final List<InlinePresentationSpec> presentationSpecs =
-                    inlineRequest.getPresentationSpecs();
-            final int specsSize = presentationSpecs.size();
-
-            InlinePresentationSpec currentSpecs = presentationSpecs.get(0);
-            for (int i = 1; i <= maxSuggestionsCount; i++) {
-                if (currentSpecs == null) {
-                    break;
-                }
-
-                if (i < specsSize) {
-                    currentSpecs = presentationSpecs.get(i);
-                }
-
-                final Uri uri = new Uri.Builder().appendPath("BasicService-" + i).build();
-                final ArrayList<String> autofillHints = new ArrayList<>();
-                autofillHints.add(fields.keyAt(0));
-                final Slice suggestionSlice = new Slice.Builder(uri,
-                        new SliceSpec("InlineSuggestion", 1))
-                        .addInt(currentSpecs.getMinSize().getWidth(), "SUBTYPE_MIN_WIDTH",
-                                Collections.EMPTY_LIST)
-                        .addInt(currentSpecs.getMaxSize().getWidth(), "SUBTYPE_MAX_WIDTH",
-                                Collections.EMPTY_LIST)
-                        .addInt(currentSpecs.getMinSize().getHeight(), "SUBTYPE_MIN_HEIGHT",
-                                Collections.EMPTY_LIST)
-                        .addInt(currentSpecs.getMaxSize().getHeight(), "SUBTYPE_MAX_HEIGHT",
-                                Collections.EMPTY_LIST)
-                        .addHints(autofillHints)
-                        .build();
-                response.addInlineSuggestionSlice(suggestionSlice);
-            }
         }
 
         // 2.Add save info
@@ -148,20 +116,42 @@ public class InlineFillService extends AutofillService {
         return response.build();
     }
 
-    static Dataset newUnlockedDataset(@NonNull Map<String, AutofillId> fields,
-            @NonNull String packageName, int i) {
+    static Dataset newUnlockedDataset(@NonNull Context context,
+            @NonNull Map<String, AutofillId> fields, @NonNull String packageName, int i,
+            @Nullable InlineSuggestionsRequest inlineRequest) {
+
         Dataset.Builder dataset = new Dataset.Builder();
         for (Entry<String, AutofillId> field : fields.entrySet()) {
-            String hint = field.getKey();
-            AutofillId id = field.getValue();
-            String value = hint + i;
+            final String hint = field.getKey();
+            final AutofillId id = field.getValue();
+            final String value = hint + i;
 
             // We're simple - our dataset values are hardcoded as "hintN" (for example,
             // "username1", "username2") and they're displayed as such, except if they're a
             // password
-            String displayValue = hint.contains("password") ? "password for #" + i : value;
-            RemoteViews presentation = newDatasetPresentation(packageName, displayValue);
-            dataset.setValue(id, AutofillValue.forText(value), presentation);
+            final String displayValue = hint.contains("password") ? "password for #" + i : value;
+            final RemoteViews presentation = newDatasetPresentation(packageName, displayValue);
+
+            // Add Inline Suggestion required info.
+            if (inlineRequest != null) {
+                Log.d(TAG, "Found InlineSuggestionsRequest in FillRequest: " + inlineRequest);
+
+                final Slice suggestionSlice = new Slice.Builder(Uri.parse("inline.slice"),
+                        new SliceSpec("InlinePresentation", 1))
+                        .addText(value, null, Collections.singletonList("inline_title"))
+                        .build();
+
+                final List<InlinePresentationSpec> specs = inlineRequest.getPresentationSpecs();
+                final int specsSize = specs.size();
+                final InlinePresentationSpec currentSpec = i - 1 < specsSize
+                        ? specs.get(i - 1)
+                        : specs.get(specsSize - 1);
+                final InlinePresentation inlinePresentation =
+                        new InlinePresentation(suggestionSlice, currentSpec);
+                dataset.setValue(id, AutofillValue.forText(value), presentation, inlinePresentation);
+            } else {
+                dataset.setValue(id, AutofillValue.forText(value), presentation);
+            }
         }
 
         return dataset.build();
