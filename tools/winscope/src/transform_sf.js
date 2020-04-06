@@ -30,6 +30,12 @@ var RELATIVE_Z_PARENT_CHIP = {short: 'RelZParent',
 var MISSING_LAYER = {short: 'MissingLayer',
     long: "This layer was referenced from the parent, but not present in the trace",
     class: 'error'};
+var GPU_CHIP = {short: 'GPU',
+    long: "This layer was composed on the GPU",
+    class: 'gpu'};
+var HWC_CHIP = {short: 'HWC',
+    long: "This layer was composed by Hardware Composer",
+    class: 'hwc'};
 
 function transform_layer(layer, {parentBounds, parentHidden}) {
   function get_size(layer) {
@@ -141,6 +147,25 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
          */
   }
 
+  function fills_color(layer) {
+    return layer.color && layer.color.a > 0 &&
+        layer.color.r >= 0 && layer.color.g >= 0 &&
+        layer.color.b >= 0;
+  }
+
+  function draws_shadows(layer) {
+    return layer.shadowRadius && layer.shadowRadius > 0;
+  }
+
+  function has_effects(layer) {
+    // Support previous color layer
+    if (layer.type === 'ColorLayer') return true;
+
+    // Support newer effect layer
+    return layer.type === 'EffectLayer' &&
+        (fills_color(layer) || draws_shadows(layer))
+  }
+
   /**
    * Checks if the layer is visible on screen according to its type,
    * active buffer content, alpha and visible regions.
@@ -149,10 +174,18 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
    * @returns if the layer is visible on screen or not
    */
   function is_visible(layer) {
-    var visible = (layer.activeBuffer || layer.type === 'ColorLayer')
+    var visible = (layer.activeBuffer || has_effects(layer))
                   && !hidden && is_opaque(layer);
     visible &= !is_empty(layer.visibleRegion);
     return visible;
+  }
+
+  function add_hwc_composition_type_chip(layer) {
+      if (layer.hwcCompositionType === "CLIENT") {
+          chips.push(GPU_CHIP);
+      } else if (layer.hwcCompositionType === "DEVICE") {
+          chips.push(HWC_CHIP);
+      }
   }
 
   function postprocess_flags(layer) {
@@ -234,6 +267,7 @@ function transform_layer(layer, {parentBounds, parentHidden}) {
   var transform_layer_with_parent_hidden =
       (layer) => transform_layer(layer, {parentBounds: rect, parentHidden: parentHidden});
   postprocess_flags(layer);
+  add_hwc_composition_type_chip(layer);
   return transform({
     obj: layer,
     kind: '',
