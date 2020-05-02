@@ -38,9 +38,10 @@ import android.service.autofill.SaveRequest;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Size;
+import android.view.View;
 import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillValue;
-import android.view.inline.InlinePresentationSpec;
+import android.widget.inline.InlinePresentationSpec;
 import android.view.inputmethod.InlineSuggestionsRequest;
 import android.widget.RemoteViews;
 import android.widget.Toast;
@@ -78,7 +79,7 @@ public class InlineFillService extends AutofillService {
         // Find autofillable fields
         AssistStructure structure = getLatestAssistStructure(request);
 
-        ArrayMap<String, AutofillId> fields = getAutofillableFields(structure, request.getFlags());
+        ArrayMap<String, AutofillId> fields = getAutofillableFields(structure);
         Log.d(TAG, "autofillable fields:" + fields);
 
         if (fields.isEmpty()) {
@@ -112,7 +113,7 @@ public class InlineFillService extends AutofillService {
             if (inlineRequest != null) {
                 final Slice authSlice = new InlinePresentationBuilder("Tap to auth respones")
                         .build();
-                final List<InlinePresentationSpec> specs = inlineRequest.getPresentationSpecs();
+                final List<InlinePresentationSpec> specs = inlineRequest.getInlinePresentationSpecs();
                 final int specsSize = specs.size();
                 final InlinePresentationSpec currentSpec = specsSize > 0 ? specs.get(0) : null;
                 inlinePresentation = new InlinePresentation(authSlice, currentSpec,
@@ -157,7 +158,7 @@ public class InlineFillService extends AutofillService {
                         final Slice authSlice = new InlinePresentationBuilder(
                                 "Tap to auth " + value).build();
                         final List<InlinePresentationSpec> specs
-                                = inlineRequest.getPresentationSpecs();
+                                = inlineRequest.getInlinePresentationSpecs();
                         final int specsSize = specs.size();
                         final InlinePresentationSpec currentSpec =
                                 specsSize > 0 ? specs.get(0) : null;
@@ -179,8 +180,12 @@ public class InlineFillService extends AutofillService {
         if (inlineRequest != null) {
             // Reuse the first spec's height for the inline action size, as there isn't dedicated
             // value from the request for this.
-            final int height = inlineRequest.getPresentationSpecs().get(0).getMinSize().getHeight();
+            final int height = inlineRequest.getInlinePresentationSpecs().get(0)
+                    .getMinSize().getHeight();
             final Size actionIconSize = new Size(height, height);
+            response.addDataset(
+                    newInlineActionDataset(context, actionIconSize, R.drawable.ic_settings,
+                            fields));
             response.addDataset(
                     newInlineActionDataset(context, actionIconSize, R.drawable.ic_settings,
                             fields));
@@ -206,6 +211,7 @@ public class InlineFillService extends AutofillService {
                 PendingIntent.FLAG_UPDATE_CURRENT);
         final Slice suggestionSlice = new InlinePresentationBuilder()
                 .setStartIcon(Icon.createWithResource(context, drawable))
+                .setAttribution(pendingIntent)
                 .build();
         final InlinePresentationSpec currentSpec = new InlinePresentationSpec.Builder(size,
                 size).build();
@@ -239,9 +245,14 @@ public class InlineFillService extends AutofillService {
             if (inlineRequest != null) {
                 Log.d(TAG, "Found InlineSuggestionsRequest in FillRequest: " + inlineRequest);
 
-                final Slice suggestionSlice = new InlinePresentationBuilder(value).build();
+                Intent intent = new Intent().setComponent(
+                        new ComponentName(context.getPackageName(), SettingsActivity.class.getName()));
+                PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT);
+                final Slice suggestionSlice = new InlinePresentationBuilder(value)
+                        .setAttribution(pendingIntent).build();
 
-                final List<InlinePresentationSpec> specs = inlineRequest.getPresentationSpecs();
+                final List<InlinePresentationSpec> specs = inlineRequest.getInlinePresentationSpecs();
                 final int specsSize = specs.size();
                 final InlinePresentationSpec currentSpec = i - 1 < specsSize
                         ? specs.get(i - 1)
@@ -273,55 +284,48 @@ public class InlineFillService extends AutofillService {
      * <p>An autofillable field is a {@link ViewNode} whose getHint(ViewNode) method.
      */
     @NonNull
-    private ArrayMap<String, AutofillId> getAutofillableFields(@NonNull AssistStructure structure,
-            int flags) {
+    private ArrayMap<String, AutofillId> getAutofillableFields(@NonNull AssistStructure structure) {
         ArrayMap<String, AutofillId> fields = new ArrayMap<>();
         int nodes = structure.getWindowNodeCount();
         for (int i = 0; i < nodes; i++) {
             ViewNode node = structure.getWindowNodeAt(i).getRootViewNode();
-            addAutofillableFields(fields, node, flags);
+            addAutofillableFields(fields, node);
         }
-        return fields;
+        ArrayMap<String, AutofillId> result = new ArrayMap<>();
+        int filedCount = fields.size();
+        for (int i = 0; i < filedCount; i++) {
+            String key = fields.keyAt(i);
+            AutofillId value = fields.valueAt(i);
+            // For fields with no hint we just use Field
+            if (key.equals(value.toString())) {
+                result.put("Field:" + i + "-", fields.valueAt(i));
+            } else {
+                result.put(key, fields.valueAt(i));
+            }
+        }
+        return result;
     }
 
     /**
      * Adds any autofillable view from the {@link ViewNode} and its descendants to the map.
      */
     private void addAutofillableFields(@NonNull Map<String, AutofillId> fields,
-            @NonNull ViewNode node, int flags) {
-        int type = node.getAutofillType();
-        String hint = getHint(node, flags);
-        if (hint != null) {
-            AutofillId id = node.getAutofillId();
-            if (!fields.containsKey(hint)) {
-                Log.v(TAG, "Setting hint " + hint + " on " + id);
-                fields.put(hint, id);
-            } else {
-                Log.v(TAG, "Ignoring hint " + hint + " on " + id
-                        + " because it was already set");
+            @NonNull ViewNode node) {
+        if (node.getAutofillType() == View.AUTOFILL_TYPE_TEXT) {
+            if (!fields.containsValue(node.getAutofillId())) {
+                final String key;
+                if (node.getHint() != null) {
+                    key = node.getHint().toLowerCase();
+                } else {
+                    key = node.getAutofillId().toString();
+                }
+                fields.put(key, node.getAutofillId());
             }
         }
         int childrenSize = node.getChildCount();
         for (int i = 0; i < childrenSize; i++) {
-            addAutofillableFields(fields, node.getChildAt(i), flags);
+            addAutofillableFields(fields, node.getChildAt(i));
         }
-    }
-
-    /**
-     * Gets the autofill hint associated with the given node.
-     *
-     * <p>By default it just return the first entry on the node's
-     * {@link ViewNode#getAutofillHints() autofillHints} (when available), but subclasses could
-     * extend it to use heuristics when the app developer didn't explicitly provide these hints.
-     */
-    @Nullable
-    protected String getHint(@NonNull ViewNode node, int flags) {
-        String[] hints = node.getAutofillHints();
-        if (hints == null) return null;
-
-        // We're simple, we only care about the first hint
-        String hint = hints[0].toLowerCase();
-        return hint;
     }
 
     /**
