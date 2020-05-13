@@ -164,6 +164,9 @@ sdk/sdk-build.prop                                                              
 ${OUT_DIR}/target/common/obj/PACKAGING/android_jar_intermediates/android.jar            platforms/${PLATFORM_NAME}/android.jar
 ${OUT_DIR}/target/common/obj/PACKAGING/android_jar_intermediates/android-stubs-src.jar  platforms/${PLATFORM_NAME}/android-stubs-src.jar
 
+# core-for-system-modules.jar for building system modules
+${OUT_DIR}/target/common/obj/JAVA_LIBRARIES/core-current-stubs-for-system-modules_intermediates/classes.jar    platforms/${PLATFORM_NAME}/core-for-system-modules.jar
+
 # optional API files.
 development/build/optional.json                                                               platforms/${PLATFORM_NAME}/optional/optional.json
 ${OUT_DIR}/target/common/obj/JAVA_LIBRARIES/org.apache.http.legacy.stubs_intermediates/classes.jar  platforms/${PLATFORM_NAME}/optional/org.apache.http.legacy.jar
@@ -233,7 +236,7 @@ development/sdk/sdk_files_NOTICE.txt      platforms/${PLATFORM_NAME}/skins/NOTIC
 # System images + Kernel
 system-qemu.img                                 system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/system.img
 vendor-qemu.img                                 system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/vendor.img
-ramdisk.img                                system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/ramdisk.img
+ramdisk-qemu.img                                system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/ramdisk.img
 device/generic/goldfish/data/etc/userdata.img    system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/userdata.img
 data/misc                                        system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/data/misc
 system/build.prop                          system-images/${PLATFORM_NAME}/${TARGET_CPU_ABI}/build.prop
