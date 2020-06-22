@@ -16,11 +16,17 @@
 
 package com.example.android.autofillkeyboard;
 
+import static android.util.TypedValue.COMPLEX_UNIT_DIP;
+
+import android.graphics.Color;
+import android.graphics.drawable.Icon;
 import android.inputmethodservice.InputMethodService;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,6 +37,14 @@ import android.view.inputmethod.InlineSuggestion;
 import android.view.inputmethod.InlineSuggestionsRequest;
 import android.view.inputmethod.InlineSuggestionsResponse;
 import android.widget.Toast;
+
+import androidx.autofill.inline.UiVersions;
+import androidx.autofill.inline.UiVersions.StylesBuilder;
+import androidx.autofill.inline.common.ImageViewStyle;
+import androidx.autofill.inline.common.TextViewStyle;
+import androidx.autofill.inline.common.ViewStyle;
+import androidx.autofill.inline.v1.InlineSuggestionUi;
+import androidx.autofill.inline.v1.InlineSuggestionUi.Style;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,6 +67,7 @@ public class AutofillImeService extends InputMethodService {
     private static final long MOVE_SUGGESTIONS_DOWN_TIMEOUT = 10000;
 
     private InputView mInputView;
+    private Keyboard mKeyboard;
     private Decoder mDecoder;
 
     private ViewGroup mSuggestionStrip;
@@ -60,6 +75,8 @@ public class AutofillImeService extends InputMethodService {
     private ViewGroup mPinnedSuggestionsEnd;
     private InlineContentClipView mScrollableSuggestionsClip;
     private ViewGroup mScrollableSuggestions;
+
+    private final Handler mHandler = new Handler(Looper.getMainLooper());
 
     private final Runnable mMoveScrollableSuggestionsToBg = () -> {
         mScrollableSuggestionsClip.setZOrderedOnTop(false);
@@ -88,6 +105,13 @@ public class AutofillImeService extends InputMethodService {
     @Override
     public View onCreateInputView() {
         mInputView = (InputView) LayoutInflater.from(this).inflate(R.layout.input_view, null);
+        mKeyboard = Keyboard.qwerty(this);
+        mInputView.addView(mKeyboard.inflateKeyboardView(LayoutInflater.from(this), mInputView));
+        mSuggestionStrip = mInputView.findViewById(R.id.suggestion_strip);
+        mPinnedSuggestionsStart = mInputView.findViewById(R.id.pinned_suggestions_start);
+        mPinnedSuggestionsEnd = mInputView.findViewById(R.id.pinned_suggestions_end);
+        mScrollableSuggestionsClip = mInputView.findViewById(R.id.scrollable_suggestions_clip);
+        mScrollableSuggestions = mInputView.findViewById(R.id.scrollable_suggestions);
         return mInputView;
     }
 
@@ -95,23 +119,42 @@ public class AutofillImeService extends InputMethodService {
     public void onStartInput(EditorInfo attribute, boolean restarting) {
         super.onStartInput(attribute, restarting);
         mDecoder = new Decoder(getCurrentInputConnection());
+        if(mKeyboard != null) {
+            mKeyboard.reset();
+        }
+        if (mInputView != null) {
+            // We delay the deletion of the suggestions from previous input connection, to avoid
+            // the flicker caused by deleting them and immediately showing new suggestions for
+            // the current input connection.
+            Log.d(TAG, "onStartInput scheduling a delayed deletion of inline suggestions");
+            mDelayedDeletion = () -> {
+                Log.d(TAG, "onStartInput deleting inline suggestions");
+                mDelayedDeletion = null;
+                updateInlineSuggestionStrip(Collections.emptyList());
+            };
+            mHandler.postDelayed(mDelayedDeletion, 200);
+        }
     }
+
+    private Runnable mDelayedDeletion;
 
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
+    }
 
-        mInputView.removeAllViews();
-        Keyboard keyboard = Keyboard.qwerty(this);
-        mInputView.addView(keyboard.inflateKeyboardView(LayoutInflater.from(this), mInputView));
-
-        mSuggestionStrip = mInputView.findViewById(R.id.suggestion_strip);
-        mPinnedSuggestionsStart = mInputView.findViewById(R.id.pinned_suggestions_start);
-        mPinnedSuggestionsEnd = mInputView.findViewById(R.id.pinned_suggestions_end);
-        mScrollableSuggestionsClip = mInputView.findViewById(R.id.scrollable_suggestions_clip);
-        mScrollableSuggestions = mInputView.findViewById(R.id.scrollable_suggestions);
-
-        updateInlineSuggestionStrip(Collections.emptyList());
+    @Override
+    public void onFinishInputView(boolean finishingInput) {
+        super.onFinishInputView(finishingInput);
+        if (!finishingInput) {
+            // This runs when the IME is hide (but not finished). We need to clear the suggestions.
+            // Otherwise, they will stay on the screen for a bit after the IME window disappears.
+            // TODO: right now the framework resends the suggestions when onStartInputView is
+            // called. If the framework is changed to not resend, then we need to cache the
+            // inline suggestion views locally and re-attach them when the IME is shown again by
+            // onStartInputView.
+            updateInlineSuggestionStrip(Collections.emptyList());
+        }
     }
 
     @Override
@@ -130,20 +173,65 @@ public class AutofillImeService extends InputMethodService {
     @Override
     public InlineSuggestionsRequest onCreateInlineSuggestionsRequest(Bundle uiExtras) {
         Log.d(TAG, "onCreateInlineSuggestionsRequest() called");
+        StylesBuilder stylesBuilder = UiVersions.newStylesBuilder();
+        Style style = InlineSuggestionUi.newStyleBuilder()
+                .setSingleIconChipStyle(
+                        new ViewStyle.Builder()
+                                .setBackground(
+                                        Icon.createWithResource(this, R.drawable.chip_background))
+                                .setPadding(0, 0, 0, 0)
+                                .build())
+                .setChipStyle(
+                        new ViewStyle.Builder()
+                                .setBackground(
+                                        Icon.createWithResource(this, R.drawable.chip_background))
+                                .setPadding(toPixel(5 + 8), 0, toPixel(5 + 8), 0)
+                                .build())
+                .setStartIconStyle(new ImageViewStyle.Builder().setLayoutMargin(0, 0, 0, 0).build())
+                .setTitleStyle(
+                        new TextViewStyle.Builder()
+                                .setLayoutMargin(toPixel(4), 0, toPixel(4), 0)
+                                .setTextColor(Color.parseColor("#FF202124"))
+                                .setTextSize(16)
+                                .build())
+                .setSubtitleStyle(
+                        new TextViewStyle.Builder()
+                                .setLayoutMargin(0, 0, toPixel(4), 0)
+                                .setTextColor(Color.parseColor("#99202124")) // 60% opacity
+                                .setTextSize(14)
+                                .build())
+                .setEndIconStyle(new ImageViewStyle.Builder().setLayoutMargin(0, 0, 0, 0).build())
+                .build();
+        stylesBuilder.addStyle(style);
+        Bundle stylesBundle = stylesBuilder.build();
+
         final ArrayList<InlinePresentationSpec> presentationSpecs = new ArrayList<>();
-        presentationSpecs.add(new InlinePresentationSpec.Builder(new Size(100, 100),
-                new Size(400, 100)).build());
-        presentationSpecs.add(new InlinePresentationSpec.Builder(new Size(100, 100),
-                new Size(400, 100)).build());
+        presentationSpecs.add(new InlinePresentationSpec.Builder(new Size(100, getHeight()),
+                new Size(740, getHeight())).setStyle(stylesBundle).build());
+        presentationSpecs.add(new InlinePresentationSpec.Builder(new Size(100, getHeight()),
+                new Size(740, getHeight())).setStyle(stylesBundle).build());
 
         return new InlineSuggestionsRequest.Builder(presentationSpecs)
                 .setMaxSuggestionCount(6)
                 .build();
     }
 
+    private int toPixel(int dp) {
+        return (int) TypedValue.applyDimension(COMPLEX_UNIT_DIP, dp,
+                getResources().getDisplayMetrics());
+    }
+
+    private int getHeight() {
+        return getResources().getDimensionPixelSize(R.dimen.keyboard_header_height);
+    }
+
     @Override
     public boolean onInlineSuggestionsResponse(InlineSuggestionsResponse response) {
         Log.d(TAG, "onInlineSuggestionsResponse() called");
+        if(mDelayedDeletion != null) {
+            Log.d(TAG, "onInlineSuggestionsResponse unscheduling delayed deletion");
+            mHandler.removeCallbacks(mDelayedDeletion);
+        }
         onInlineSuggestionsResponseInternal(response);
         return true;
     }
@@ -155,7 +243,6 @@ public class AutofillImeService extends InputMethodService {
 
         final int size = suggestionItems.size();
         if (size <= 0) {
-            mSuggestionStrip.setVisibility(View.GONE);
             return;
         }
 
@@ -224,13 +311,12 @@ public class AutofillImeService extends InputMethodService {
         for (int i = 0; i < totalSuggestionsCount; i++) {
             final int index = i;
             final InlineSuggestion inlineSuggestion = inlineSuggestions.get(i);
-            final Size size = inlineSuggestion.getInfo().getInlinePresentationSpec().getMaxSize();
+            final Size size = new Size(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
 
             inlineSuggestion.inflate(this, size, executor, suggestionView -> {
                 Log.d(TAG, "new inline suggestion view ready");
                 if(suggestionView != null) {
-                    suggestionView.setLayoutParams(new ViewGroup.LayoutParams(
-                            size.getWidth(), size.getHeight()));
                     suggestionView.setOnClickListener((v) -> {
                         Log.d(TAG, "Received click on the suggestion");
                     });
